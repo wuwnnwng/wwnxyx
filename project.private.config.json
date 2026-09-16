@@ -1,0 +1,17 @@
+{
+  "libVersion": "3.8.0",
+  "projectname": "叠叠消物",
+  "setting": {
+    "urlCheck": false,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "skylineRenderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "useApiHook": true,
+    "useApiHostProcess": true,
+    "showShadowRootInInspector": false,
+    "useStaticServer": false
+  },
+  "condition": {}
+}
