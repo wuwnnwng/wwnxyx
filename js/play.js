@@ -51,6 +51,9 @@ class PlayScene {
     this.guide = mode === 'level' && this.cfg.level === 1
     this.overlay = null
     ad.showBanner(env)
+    if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
+      this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
+    }
     let guard = 0
     while (guard < 8 && this.maybeSynth(true)) guard++
   }
@@ -605,7 +608,7 @@ class PlayScene {
           self.score += CONFIG.score.explodeEach
           self.particles.burst(c.x + c.w / 2, c.y + c.h / 2, '#E9C46A', 8)
         })
-        if (extra.length) self.addFloater(cx, cy - 20, '爆炸 +' + extra.length * CONFIG.score.explodeEach, '#E9C46A')
+        if (extra.length) self.addFloater(cx, cy - 20, '高级爆炸 +' + extra.length * CONFIG.score.explodeEach, '#E9C46A')
       }
       self.afterBoardChange()
     }
@@ -636,7 +639,7 @@ class PlayScene {
         const adv = board.synthesizeGroup(g, self.cards, self.layout.board)
         self.relayoutSlot(adv)
         self.score += CONFIG.score.synth
-        self.addFloater(cx + 30, cy, '合成 +' + CONFIG.score.synth, '#E9C46A')
+        self.addFloater(cx + 30, cy, '合成高级牌 +' + CONFIG.score.synth, '#E9C46A')
         self.particles.burst(cx + 30, cy + 20, '#E9C46A', 16)
         self.afterBoardChange()
       })
@@ -730,7 +733,7 @@ class PlayScene {
         }
       }
       board.compactSlots(self.slots, self.layout.slots)
-      board.shuffleBoard(self.cards, self.layout.board)
+      board.shuffleBoard(self.cards, self.layout.board, self.cfg)
       board.ensureSomePair(self.cards)
       self.showToast('复活成功，获得搬移并已洗牌')
       self.afterBoardChange()
@@ -762,7 +765,7 @@ class PlayScene {
         self.showToast('未看完广告')
         return
       }
-      board.shuffleBoard(self.cards, self.layout.board)
+      board.shuffleBoard(self.cards, self.layout.board, self.cfg)
       self.selected = null
       self.showToast('已重新堆叠')
       self.afterBoardChange()

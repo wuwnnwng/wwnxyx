@@ -4,7 +4,7 @@
  */
 const CONFIG = {
   name: '叠叠消物',
-  version: '1.1.0',
+  version: '1.2.0',
   /** 开发者工具 / 未配置广告位时，用模拟广告走完激励流程，方便自测。正式上线改为 false */
   mockAdWhenUnavailable: true,
 
@@ -68,35 +68,81 @@ const LEVEL_NAMES = [
   '餐边柜', '工具箱', '床头柜', '储物间', '洗衣角'
 ]
 
+/**
+ * 市面堆叠消常见布局：底层满格多行多列，奇数层错半格压在缝上。
+ * 第一关只铺两排；之后加列、加行、再加层。
+ */
+function getStackPlan(level) {
+  const n = Math.max(1, level | 0)
+  if (n <= 1) return { cols: 4, rows: 2, layers: 2 }
+  if (n === 2) return { cols: 4, rows: 3, layers: 2 }
+  if (n === 3) return { cols: 5, rows: 3, layers: 2 }
+  if (n === 4) return { cols: 5, rows: 3, layers: 3 }
+  if (n === 5) return { cols: 5, rows: 4, layers: 2 }
+  if (n === 6) return { cols: 5, rows: 4, layers: 3 }
+  if (n === 7) return { cols: 6, rows: 4, layers: 2 }
+  if (n <= 9) return { cols: 6, rows: 4, layers: 3 }
+  if (n <= 12) return { cols: 6, rows: 5, layers: 2 }
+  return { cols: 6, rows: 5, layers: 3 }
+}
+
+function layerCells(cols, rows, layer) {
+  const brick = layer % 2 === 1
+  return {
+    cols: Math.max(2, cols - layer),
+    rows: Math.max(1, rows - layer),
+    brick: brick
+  }
+}
+
+function estimateSlots(plan) {
+  let n = 0
+  for (let L = 0; L < plan.layers; L++) {
+    const g = layerCells(plan.cols, plan.rows, L)
+    n += g.cols * g.rows
+  }
+  if (n % 2) n -= 1
+  return n
+}
+
 function getLevelConfig(level) {
   const n = Math.max(1, level | 0)
-  const types = Math.min(5 + Math.floor((n - 1) / 3), 8)
-  const layers = Math.min(3 + Math.floor((n - 1) / 2), 6)
-  const locks = n <= 1 ? 0 : Math.min(Math.floor(n / 2), 6)
-  const synthTypes = n >= 3 ? Math.min(1 + Math.floor((n - 3) / 5), 2) : 0
-  const target = 260 + (n - 1) * 120 + synthTypes * 100
+  const plan = getStackPlan(n)
+  const types = Math.min(4 + Math.floor((n - 1) / 2), 8)
+  const locks = n <= 1 ? 0 : Math.min(1 + Math.floor((n - 2) / 2), 8)
+  const advancedPairs = n < 3 ? 0 : Math.min(1 + Math.floor((n - 3) / 4), 2)
+  const slots = estimateSlots(plan)
+  const pairs = Math.max(3, Math.floor(slots / 2))
+  const target = Math.round(CONFIG.score.pair * pairs * (0.42 + Math.min(n, 12) * 0.025))
   return {
     level: n,
     name: LEVEL_NAMES[(n - 1) % LEVEL_NAMES.length],
     types: types,
-    layers: layers,
+    cols: plan.cols,
+    rows: plan.rows,
+    layers: plan.layers,
     pairCount: types,
     locks: locks,
-    synthTypes: synthTypes,
+    advancedPairs: advancedPairs,
+    synthTypes: 0,
     target: target,
     freeMoves: CONFIG.move.freePerRound
   }
 }
 
 function getEndlessConfig() {
+  const plan = { cols: 5, rows: 4, layers: 3 }
   return {
     level: 0,
     name: '无尽模式',
     types: 6,
-    layers: 4,
+    cols: plan.cols,
+    rows: plan.rows,
+    layers: plan.layers,
     pairCount: 6,
     locks: 2,
-    synthTypes: 1,
+    advancedPairs: 1,
+    synthTypes: 0,
     target: 0,
     freeMoves: CONFIG.move.freePerRound
   }
@@ -106,6 +152,9 @@ module.exports = {
   CONFIG: CONFIG,
   ITEMS: ITEMS,
   LEVEL_NAMES: LEVEL_NAMES,
+  getStackPlan: getStackPlan,
+  layerCells: layerCells,
+  estimateSlots: estimateSlots,
   getLevelConfig: getLevelConfig,
   getEndlessConfig: getEndlessConfig
 }

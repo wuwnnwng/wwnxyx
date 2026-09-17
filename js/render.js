@@ -249,11 +249,11 @@ function drawCard(ctx, card, opt) {
 
   if (card.advanced) {
     ctx.fillStyle = '#E9C46A'
-    ctx.font = 'bold 10px sans-serif'
+    ctx.font = w < 46 ? 'bold 9px sans-serif' : 'bold 10px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
-    ctx.fillText('高级', x + w / 2, y + h - 6)
-    star(ctx, x + w - 12, y + 16, 5, '#E9C46A')
+    ctx.fillText(w < 46 ? '爆' : '高级·爆', x + w / 2, y + h - 5)
+    burstBadge(ctx, x + w - 11, y + 16, 6, '#E9C46A')
   }
 
   if (o.covered) {
@@ -297,15 +297,15 @@ function drawCard(ctx, card, opt) {
   ctx.restore()
 }
 
-function star(ctx, x, y, r, color) {
+function burstBadge(ctx, x, y, r, color) {
   ctx.save()
   ctx.fillStyle = color
   ctx.beginPath()
-  for (let i = 0; i < 5; i++) {
-    const a = -Math.PI / 2 + i * Math.PI * 2 / 5
-    const b = a + Math.PI / 5
-    ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
-    ctx.lineTo(x + Math.cos(b) * r * 0.45, y + Math.sin(b) * r * 0.45)
+  for (let i = 0; i < 8; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 4
+    const rr = i % 2 === 0 ? r : r * 0.45
+    if (i === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
+    else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
   }
   ctx.closePath()
   ctx.fill()
