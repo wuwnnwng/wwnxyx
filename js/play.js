@@ -20,7 +20,6 @@ class PlayScene {
     this.slots = []
     for (let i = 0; i < CONFIG.move.slotCount; i++) this.slots.push(null)
     this.selected = null
-    this.moves = 1
     this.score = 0
     this.combo = 0
     this.comboT = 0
@@ -47,7 +46,6 @@ class PlayScene {
     this.layout = this.buildLayout(env)
     this.cfg = mode === 'endless' ? board.getEndlessConfig() : board.getLevelConfig(level || 1)
     this.cards = board.createBoard(this.cfg, this.layout.board, env.cardW, env.cardH)
-    this.moves = this.cfg.freeMoves
     this.guide = mode === 'level' && this.cfg.level === 1
     this.overlay = null
     ad.showBanner(env)
@@ -239,13 +237,17 @@ class PlayScene {
     }
 
     const chipY = L.headerY + L.headerH - 2
+    let filled = 0
+    for (let i = 0; i < this.slots.length; i++) {
+      if (this.slots[i] && !this.slots[i].removed) filled++
+    }
     roundRect(ctx, 12, chipY, 108, 22, 11)
     ctx.fillStyle = '#FFFBF5'
     ctx.fill()
-    ctx.fillStyle = '#E07A5F'
+    ctx.fillStyle = filled >= this.slots.length ? '#C45C42' : '#E07A5F'
     ctx.font = 'bold 12px sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('搬移  ' + this.moves, 66, chipY + 12)
+    ctx.fillText('暂存  ' + filled + '/' + this.slots.length, 66, chipY + 12)
 
     if (this.combo >= 2) {
       ctx.fillStyle = '#E07A5F'
@@ -510,10 +512,6 @@ class PlayScene {
       this.showToast('这个暂存格已占用')
       return
     }
-    if (this.moves <= 0) {
-      this.askExtraMove(index)
-      return
-    }
     this.applyMove(index)
   }
 
@@ -522,7 +520,6 @@ class PlayScene {
     if (!card) return
     const r = this.layout.slots[index]
     if (!r || this.slots[index]) return
-    this.moves -= 1
     this.selected = null
     card.scale = 1
     this.slots[index] = card
@@ -549,20 +546,6 @@ class PlayScene {
       return
     }
     this.afterBoardChange()
-  }
-
-  askExtraMove(index) {
-    const self = this
-    this.showToast('搬移次数已用完')
-    ad.showRewarded('move').then(function (ok) {
-      if (!ok) {
-        self.showToast('未看完广告，没有获得次数')
-        return
-      }
-      self.moves += CONFIG.move.extraPerAd
-      self.showToast('获得 ' + CONFIG.move.extraPerAd + ' 次搬移')
-      if (self.selected && !self.slots[index]) self.applyMove(index)
-    })
   }
 
   doMatch(a, b) {
@@ -680,7 +663,7 @@ class PlayScene {
         if (this.maybeSynth(false)) return
       }
     }
-    if (board.isFailed(this.cards, this.moves, this.slots)) this.onFail()
+    if (board.isFailed(this.cards, this.slots)) this.onFail()
   }
 
   onWin() {
@@ -701,8 +684,8 @@ class PlayScene {
     audio.fail()
     this.overlay = {
       kind: 'fail',
-      title: '没有可走的步了',
-      desc: '没有可点的对子，暂存区也无法继续放入\n可以看广告复活，或重开本局',
+      title: '暂存区已满',
+      desc: '底部 7 格已经满了，且没有可消的对子\n可以看广告复活，或重开本局',
       buttons: this.makeOverlayButtons('fail')
     }
   }
@@ -720,7 +703,6 @@ class PlayScene {
         return
       }
       self.overlay = null
-      self.moves += CONFIG.move.reviveMoves
       if (board.emptySlotIndex(self.slots) < 0) {
         const last = self.slots[self.slots.length - 1]
         if (last) {
@@ -735,7 +717,7 @@ class PlayScene {
       board.compactSlots(self.slots, self.layout.slots)
       board.shuffleBoard(self.cards, self.layout.board, self.cfg)
       board.ensureSomePair(self.cards)
-      self.showToast('复活成功，获得搬移并已洗牌')
+      self.showToast('复活成功，已重新堆叠')
       self.afterBoardChange()
     })
   }

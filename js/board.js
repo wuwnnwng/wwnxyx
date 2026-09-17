@@ -601,14 +601,10 @@ function ensureSomePair(cards) {
   }
 }
 
-function isFailed(cards, movesLeft, slots) {
+function isFailed(cards, slots) {
+  if (emptySlotIndex(slots) !== -1) return false
   if (clickableSamePairs(cards).length > 0) return false
   if (findSlotPair(slots)) return false
-  const freeExists = activeCards(cards).some(function (c) {
-    return isFree(c, cards) && c.slotIndex == null
-  })
-  const slotEmpty = emptySlotIndex(slots) !== -1
-  if (movesLeft > 0 && freeExists && slotEmpty) return false
   return true
 }
 

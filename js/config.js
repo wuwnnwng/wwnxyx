@@ -16,7 +16,7 @@ const CONFIG = {
 
   /**
    * 在 微信公众平台 → 流量主 → 广告管理 创建后粘贴到这里
-   * 激励：搬移 / 提示 / 洗牌 / 复活
+   * 激励：提示 / 洗牌 / 失败复活
    * 插屏：仅通关结束
    * Banner：对局页底部常驻
    */
@@ -42,9 +42,6 @@ const CONFIG = {
   },
 
   move: {
-    freePerRound: 3,
-    extraPerAd: 3,
-    reviveMoves: 3,
     slotCount: 7
   }
 }
@@ -125,8 +122,7 @@ function getLevelConfig(level) {
     locks: locks,
     advancedPairs: advancedPairs,
     synthTypes: 0,
-    target: target,
-    freeMoves: CONFIG.move.freePerRound
+    target: target
   }
 }
 
@@ -143,8 +139,7 @@ function getEndlessConfig() {
     locks: 2,
     advancedPairs: 1,
     synthTypes: 0,
-    target: 0,
-    freeMoves: CONFIG.move.freePerRound
+    target: 0
   }
 }
 
