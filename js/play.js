@@ -17,7 +17,8 @@ class PlayScene {
     this.mode = 'level'
     this.cfg = null
     this.cards = []
-    this.slots = [null, null]
+    this.slots = []
+    for (let i = 0; i < CONFIG.move.slotCount; i++) this.slots.push(null)
     this.selected = null
     this.moves = 1
     this.score = 0
@@ -57,25 +58,33 @@ class PlayScene {
   buildLayout(env) {
     const headerY = env.safeTop
     const headerH = 58
-    const toolsH = 132
+    const slotCount = CONFIG.move.slotCount
+    const sidePad = 10
+    const gap = 4
+    const slotW = Math.floor((env.width - sidePad * 2 - gap * (slotCount - 1)) / slotCount)
+    const slotH = Math.round(slotW * 1.22)
+    const toolsH = 36 + slotH + 28
     const boardY = headerY + headerH + 18
     const boardH = env.height - boardY - toolsH - env.bannerH
-    const slotW = env.cardW + 16
-    const slotH = env.cardH + 16
-    const slotGap = 16
-    const slotsY = boardY + boardH + 10
-    const slotsCenter = env.width / 2 - 28
-    const s0 = { x: slotsCenter - slotW - slotGap / 2, y: slotsY, w: slotW, h: slotH }
-    const s1 = { x: slotsCenter + slotGap / 2, y: slotsY, w: slotW, h: slotH }
-    const btnW = 64
-    const btnX = env.width - 18 - btnW
+    const barY = boardY + boardH + 8
+    const slotsY = barY + 32
+    const slots = []
+    for (let i = 0; i < slotCount; i++) {
+      slots.push({
+        x: sidePad + i * (slotW + gap),
+        y: slotsY,
+        w: slotW,
+        h: slotH
+      })
+    }
+    const btnW = 52
     return {
       headerY: headerY,
       headerH: headerH,
       board: { x: 10, y: boardY, w: env.width - 20, h: boardH },
-      slots: [s0, s1],
-      hintBtn: { x: btnX, y: slotsY, w: btnW, h: 36, label: '提示', bg: '#81B29A', radius: 14, font: 'bold 13px sans-serif' },
-      shuffleBtn: { x: btnX, y: slotsY + 42, w: btnW, h: 36, label: '洗牌', bg: '#E9C46A', color: '#3D405B', radius: 14, font: 'bold 13px sans-serif' },
+      slots: slots,
+      hintBtn: { x: 12, y: barY, w: btnW, h: 28, label: '提示', bg: '#81B29A', radius: 14, font: 'bold 12px sans-serif' },
+      shuffleBtn: { x: env.width - 12 - btnW, y: barY, w: btnW, h: 28, label: '洗牌', bg: '#E9C46A', color: '#3D405B', radius: 14, font: 'bold 12px sans-serif' },
       backBtn: { x: 12, y: headerY, w: 48, h: 28, label: '返回', bg: 'rgba(61,64,91,0.12)', color: '#3D405B', radius: 14, font: '12px sans-serif' }
     }
   }
@@ -157,7 +166,10 @@ class PlayScene {
       return la - lb
     })
 
-    for (let i = 0; i < 2; i++) drawSlot(ctx, L.slots[i], !!this.slots[i])
+    const wantMove = this.selected && this.selected.slotIndex == null
+    for (let i = 0; i < L.slots.length; i++) {
+      drawSlot(ctx, L.slots[i], !!this.slots[i], wantMove && !this.slots[i])
+    }
 
     let selectedCard = null
     for (let i = 0; i < list.length; i++) {
@@ -246,12 +258,12 @@ class PlayScene {
   }
 
   drawFooter(ctx, L) {
+    const env = this.app.env
     ctx.fillStyle = '#8A8178'
-    ctx.font = '11px sans-serif'
+    ctx.font = 'bold 12px sans-serif'
     ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-    const y = L.slots[0].y + L.slots[0].h + 6
-    ctx.fillText('选中卡牌后点暂存区可搬移 · 道具需看广告', L.board.x + L.board.w / 2 - 30, y)
+    ctx.textBaseline = 'middle'
+    ctx.fillText('暂存区 · 相同自动消除', env.width / 2, L.hintBtn.y + 14)
     drawButton(ctx, L.hintBtn, this.pressed === 'hint')
     drawButton(ctx, L.shuffleBtn, this.pressed === 'shuffle')
   }
@@ -291,10 +303,10 @@ class PlayScene {
     ctx.font = '13px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('点两张没有被压住的相同卡牌即可消除', env.width / 2, env.safeTop + 108)
+    ctx.fillText('点两张相同卡牌消除，或放入暂存区自动对消', env.width / 2, env.safeTop + 108)
     ctx.font = '11px sans-serif'
     ctx.fillStyle = '#F2CC8F'
-    ctx.fillText('凑满4张同款会合成高级卡，高级消除会爆炸', env.width / 2, env.safeTop + 126)
+    ctx.fillText('暂存 7 格，两张一样会立刻消除', env.width / 2, env.safeTop + 126)
   }
 
   drawOverlay(ctx, env) {
@@ -390,11 +402,15 @@ class PlayScene {
       this.useShuffle()
       return
     }
-    for (let i = 0; i < 2; i++) {
-      if (pointInRect(x, y, L.slots[i])) {
-        this.tryMoveToSlot(i)
+    for (let i = 0; i < L.slots.length; i++) {
+      if (!pointInRect(x, y, L.slots[i])) continue
+      const parked = this.slots[i]
+      if (parked && !parked.removed) {
+        this.handleCard(parked)
         return
       }
+      this.tryMoveToSlot(i)
+      return
     }
     this.handleBoardTap(x, y)
   }
@@ -428,15 +444,24 @@ class PlayScene {
       this.selected = null
       return
     }
+    this.handleCard(card)
+  }
+
+  handleCard(card) {
     if (card.locked) {
       audio.lock()
       card.shake = 0.25
       this.showToast('先消除旁边的卡牌来开锁')
       return
     }
-    if (board.isCovered(card, this.cards)) {
+    if (card.slotIndex == null && board.isCovered(card, this.cards)) {
       card.shake = 0.25
       this.showToast('被上层压住，无法点击')
+      return
+    }
+    const staged = board.findStagingMatch(card, this.slots)
+    if (staged) {
+      this.doMatch(card, staged)
       return
     }
     if (!this.selected) {
@@ -446,8 +471,17 @@ class PlayScene {
       return
     }
     if (this.selected.id === card.id) {
-      this.selected.scale = 1
-      this.selected = null
+      if (card.slotIndex != null) {
+        this.selected.scale = 1
+        this.selected = null
+        return
+      }
+      const idx = board.emptySlotIndex(this.slots)
+      if (idx < 0) {
+        this.showToast('暂存区已满')
+        return
+      }
+      this.tryMoveToSlot(idx)
       return
     }
     if (board.canMatch(this.selected, card) && board.isFree(card, this.cards) && board.isFree(this.selected, this.cards)) {
@@ -462,7 +496,7 @@ class PlayScene {
 
   tryMoveToSlot(index) {
     if (!this.selected) {
-      this.showToast('请先点选一张可点击的卡牌')
+      this.showToast('先点选卡牌，再点空格放入暂存')
       return
     }
     if (this.selected.slotIndex != null) {
@@ -482,12 +516,35 @@ class PlayScene {
 
   applyMove(index) {
     const card = this.selected
-    if (!card || !board.moveToSlot(card, this.slots, index, this.layout.slots)) return
+    if (!card) return
+    const r = this.layout.slots[index]
+    if (!r || this.slots[index]) return
     this.moves -= 1
     this.selected = null
     card.scale = 1
+    this.slots[index] = card
+    card.slotIndex = index
+    card.layer = 100 + index
     audio.tap()
     try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
+    const self = this
+    this.addAnim(card, {
+      x: r.x + (r.w - Math.max(24, r.w - 6)) / 2,
+      y: r.y + (r.h - Math.max(28, r.h - 8)) / 2,
+      scale: Math.min((r.w - 6) / (card.boardW || card.w), 1)
+    }, 0.22, function () {
+      board.fitCardInSlot(card, r)
+      self.maybeClearSlotPairs()
+    })
+  }
+
+  maybeClearSlotPairs() {
+    board.compactSlots(this.slots, this.layout.slots)
+    const pair = board.findSlotPair(this.slots)
+    if (pair) {
+      this.doMatch(pair[0], pair[1])
+      return
+    }
     this.afterBoardChange()
   }
 
@@ -553,7 +610,7 @@ class PlayScene {
       self.afterBoardChange()
     }
     this.addAnim(a, { x: mx, y: my, scale: 0.2 }, 0.22, done)
-    this.addAnim(b, { x: mx, y: my, scale: 0.2 }, 0.22, done)
+    this.addAnim(b, { x: mx, y: my, scale: 0.22 }, 0.22, done)
   }
 
   maybeSynth(silent) {
@@ -595,15 +652,19 @@ class PlayScene {
       return
     }
     this.slots[card.slotIndex] = card
-    card.x = r.x + (r.w - card.w) / 2
-    card.y = r.y + (r.h - card.h) / 2
-    card.layer = 100
+    board.fitCardInSlot(card, r)
   }
 
   afterBoardChange() {
     if (this.overlay) return
     if (this.mode === 'level' && this.score >= this.cfg.target) {
       this.onWin()
+      return
+    }
+    board.compactSlots(this.slots, this.layout.slots)
+    const pair = board.findSlotPair(this.slots)
+    if (pair) {
+      this.doMatch(pair[0], pair[1])
       return
     }
     if (this.maybeSynth(false)) return
@@ -638,7 +699,7 @@ class PlayScene {
     this.overlay = {
       kind: 'fail',
       title: '没有可走的步了',
-      desc: '场上无法二消，搬移次数也用完了\n可以看广告复活，或重开本局',
+      desc: '没有可点的对子，暂存区也无法继续放入\n可以看广告复活，或重开本局',
       buttons: this.makeOverlayButtons('fail')
     }
   }
@@ -657,6 +718,18 @@ class PlayScene {
       }
       self.overlay = null
       self.moves += CONFIG.move.reviveMoves
+      if (board.emptySlotIndex(self.slots) < 0) {
+        const last = self.slots[self.slots.length - 1]
+        if (last) {
+          board.clearSlotOf(last, self.slots)
+          last.w = last.boardW || last.w
+          last.h = last.boardH || last.h
+          last.layer = 99
+          last.x = self.layout.board.x + 16
+          last.y = self.layout.board.y + 16
+        }
+      }
+      board.compactSlots(self.slots, self.layout.slots)
       board.shuffleBoard(self.cards, self.layout.board)
       board.ensureSomePair(self.cards)
       self.showToast('复活成功，获得搬移并已洗牌')

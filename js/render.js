@@ -327,22 +327,15 @@ function drawLockIcon(ctx, x, y, s) {
   ctx.restore()
 }
 
-function drawSlot(ctx, rect, filled) {
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 12)
-  ctx.fillStyle = filled ? 'rgba(255,251,245,0.2)' : 'rgba(255,251,245,0.55)'
+function drawSlot(ctx, rect, filled, highlight) {
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8)
+  ctx.fillStyle = highlight ? 'rgba(224,122,95,0.22)' : (filled ? 'rgba(255,251,245,0.18)' : 'rgba(255,251,245,0.55)')
   ctx.fill()
-  ctx.strokeStyle = '#CABCAB'
-  ctx.lineWidth = 1.5
-  try { ctx.setLineDash([5, 4]) } catch (e) {}
+  ctx.strokeStyle = highlight ? '#E07A5F' : '#CABCAB'
+  ctx.lineWidth = highlight ? 2 : 1.2
+  try { ctx.setLineDash(filled ? [] : [4, 3]) } catch (e) {}
   ctx.stroke()
   try { ctx.setLineDash([]) } catch (e) {}
-  if (!filled) {
-    ctx.fillStyle = '#B6A999'
-    ctx.font = '12px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('暂存', rect.x + rect.w / 2, rect.y + rect.h / 2)
-  }
 }
 
 function drawButton(ctx, btn, pressed) {
@@ -398,6 +391,18 @@ class Particles {
       })
     }
   }
+  sparkle(x, y, color) {
+    this.list.push({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 24,
+      vy: -18 - Math.random() * 36,
+      life: 0.7 + Math.random() * 0.7,
+      t: 0,
+      r: 1.2 + Math.random() * 1.8,
+      color: color || '#F2CC8F'
+    })
+  }
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
       const p = this.list[i]
@@ -431,6 +436,8 @@ module.exports = {
   hitButton: hitButton,
   drawBannerPlaceholder: drawBannerPlaceholder,
   Particles: Particles,
+  star: star,
+  fillEllipse: fillEllipse,
   lerp: lerp,
   clamp: clamp
 }

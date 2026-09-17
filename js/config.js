@@ -4,7 +4,7 @@
  */
 const CONFIG = {
   name: '叠叠消物',
-  version: '1.0.0',
+  version: '1.1.0',
   /** 开发者工具 / 未配置广告位时，用模拟广告走完激励流程，方便自测。正式上线改为 false */
   mockAdWhenUnavailable: true,
 
@@ -42,10 +42,10 @@ const CONFIG = {
   },
 
   move: {
-    freePerRound: 1,
-    extraPerAd: 2,
-    reviveMoves: 2,
-    slotCount: 2
+    freePerRound: 3,
+    extraPerAd: 3,
+    reviveMoves: 3,
+    slotCount: 7
   }
 }
 

@@ -36,6 +36,7 @@ const app = {
   play: null,
   goHome: function () {
     ad.hideBanner()
+    this.home.enter()
     this.scene = 'home'
   },
   goPlay: function (mode, level) {

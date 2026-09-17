@@ -55,7 +55,9 @@ function makeCard(type, layer, extra) {
     scale: 1,
     shake: 0,
     glow: 0,
-    born: now()
+    born: now(),
+    boardW: 60,
+    boardH: 72
   }
   if (extra) {
     for (const k in extra) c[k] = extra[k]
@@ -206,6 +208,10 @@ function createBoard(cfg, box, cardW, cardH) {
     extraIds.push(c.id)
   }
   layoutPile(cards, box, cardW, cardH, cfg.layers)
+  for (let i = 0; i < cards.length; i++) {
+    cards[i].boardW = cards[i].w
+    cards[i].boardH = cards[i].h
+  }
   limitUnlockedPerType(cards, 2)
   assignLocks(cards, cfg.locks, extraIds)
   ensureOpeningMatch(cards)
@@ -377,6 +383,8 @@ function spawnEndless(cards, box, cardW, cardH, difficulty) {
     const c = makeCard(type, topLayer)
     c.w = cardW
     c.h = cardH
+    c.boardW = cardW
+    c.boardH = cardH
     c.x = box.x + randInt(8, Math.max(9, box.w - cardW - 8))
     c.y = box.y + randInt(8, Math.max(9, box.h - cardH - 8))
     if (difficulty > 5 && Math.random() < 0.12) {
@@ -406,15 +414,22 @@ function emptySlotIndex(slots) {
   return -1
 }
 
+function fitCardInSlot(card, rect) {
+  card.w = Math.max(24, rect.w - 6)
+  card.h = Math.max(28, rect.h - 8)
+  card.x = rect.x + (rect.w - card.w) / 2
+  card.y = rect.y + (rect.h - card.h) / 2
+  card.scale = 1
+  card.layer = 100 + (card.slotIndex || 0)
+}
+
 function moveToSlot(card, slots, index, slotRects) {
   const old = slots[index]
   if (old) return false
   slots[index] = card
   card.slotIndex = index
-  card.layer = 100
-  const r = slotRects[index]
-  card.x = r.x + (r.w - card.w) / 2
-  card.y = r.y + (r.h - card.h) / 2
+  card.layer = 100 + index
+  fitCardInSlot(card, slotRects[index])
   return true
 }
 
@@ -422,6 +437,41 @@ function clearSlotOf(card, slots) {
   if (card.slotIndex == null) return
   if (slots[card.slotIndex] === card) slots[card.slotIndex] = null
   card.slotIndex = null
+}
+
+function compactSlots(slots, slotRects) {
+  const kept = []
+  for (let i = 0; i < slots.length; i++) {
+    if (slots[i] && !slots[i].removed) kept.push(slots[i])
+    slots[i] = null
+  }
+  for (let i = 0; i < kept.length; i++) {
+    kept[i].slotIndex = i
+    slots[i] = kept[i]
+    fitCardInSlot(kept[i], slotRects[i])
+  }
+}
+
+function findSlotPair(slots) {
+  const filled = []
+  for (let i = 0; i < slots.length; i++) {
+    if (slots[i] && !slots[i].removed) filled.push(slots[i])
+  }
+  for (let i = 0; i < filled.length; i++) {
+    for (let j = i + 1; j < filled.length; j++) {
+      if (canMatch(filled[i], filled[j])) return [filled[i], filled[j]]
+    }
+  }
+  return null
+}
+
+function findStagingMatch(card, slots) {
+  if (!card) return null
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i]
+    if (s && s.id !== card.id && canMatch(card, s)) return s
+  }
+  return null
 }
 
 function hasAnyPairOnBoard(cards) {
@@ -449,7 +499,10 @@ function ensureSomePair(cards) {
 
 function isFailed(cards, movesLeft, slots) {
   if (clickableSamePairs(cards).length > 0) return false
-  const freeExists = activeCards(cards).some(function (c) { return isFree(c, cards) })
+  if (findSlotPair(slots)) return false
+  const freeExists = activeCards(cards).some(function (c) {
+    return isFree(c, cards) && c.slotIndex == null
+  })
   const slotEmpty = emptySlotIndex(slots) !== -1
   if (movesLeft > 0 && freeExists && slotEmpty) return false
   return true
@@ -473,6 +526,10 @@ module.exports = {
   spawnEndless: spawnEndless,
   emptySlotIndex: emptySlotIndex,
   moveToSlot: moveToSlot,
+  fitCardInSlot: fitCardInSlot,
+  compactSlots: compactSlots,
+  findSlotPair: findSlotPair,
+  findStagingMatch: findStagingMatch,
   clearSlotOf: clearSlotOf,
   ensureSomePair: ensureSomePair,
   isFailed: isFailed,
