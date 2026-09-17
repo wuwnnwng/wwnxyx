@@ -297,6 +297,21 @@ function drawCard(ctx, card, opt) {
   ctx.restore()
 }
 
+function star(ctx, x, y, r, color) {
+  ctx.save()
+  ctx.fillStyle = color
+  ctx.beginPath()
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + i * Math.PI * 2 / 5
+    const b = a + Math.PI / 5
+    ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r)
+    ctx.lineTo(x + Math.cos(b) * r * 0.45, y + Math.sin(b) * r * 0.45)
+  }
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
 function burstBadge(ctx, x, y, r, color) {
   ctx.save()
   ctx.fillStyle = color
