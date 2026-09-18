@@ -164,8 +164,9 @@ class HomeScene {
     ctx.globalAlpha = 1
 
     if (subK > 0.2) {
-      star(ctx, env.width / 2 - 92, env.safeTop + 70, 5 + Math.sin(this.t * 5) * 1.2, '#E9C46A')
-      star(ctx, env.width / 2 + 92, env.safeTop + 78, 4 + Math.cos(this.t * 4) * 1, '#E07A5F')
+      const starGap = (chars.length - 1) * step / 2 + 38
+      star(ctx, env.width / 2 - starGap, env.safeTop + 70, 5 + Math.sin(this.t * 5) * 1.2, '#E9C46A')
+      star(ctx, env.width / 2 + starGap, env.safeTop + 78, 4 + Math.cos(this.t * 4) * 1, '#E07A5F')
     }
   }
 

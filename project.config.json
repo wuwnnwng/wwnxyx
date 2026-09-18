@@ -1,5 +1,5 @@
 {
-  "description": "叠叠消物 - 竖屏休闲堆叠消除小游戏",
+  "description": "好鸟哥 - 竖屏休闲堆叠消除小游戏",
   "packOptions": {
     "ignore": [
       {
@@ -50,7 +50,7 @@
   "compileType": "game",
   "libVersion": "3.8.0",
   "appid": "touristappid",
-  "projectname": "叠叠消物",
+  "projectname": "好鸟哥",
   "condition": {},
   "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},

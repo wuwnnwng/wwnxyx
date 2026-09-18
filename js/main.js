@@ -25,7 +25,7 @@ try {
 
 try {
   wx.onShareAppMessage(function () {
-    return { title: '叠叠消物｜二消堆叠，居家小物消消看' }
+    return { title: '好鸟哥｜二消堆叠，居家小物消消看' }
   })
 } catch (e) {}
 
@@ -102,5 +102,5 @@ wx.onError(function (err) {
   console.log('[game error]', err)
 })
 
-console.log('[叠叠消物] v' + CONFIG.version + ' ' + env.width + 'x' + env.height)
+console.log('[好鸟哥] v' + CONFIG.version + ' ' + env.width + 'x' + env.height)
 loop()

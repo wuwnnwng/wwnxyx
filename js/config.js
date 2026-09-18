@@ -1,9 +1,9 @@
 /**
- * 叠叠消物 - 全局配置
+ * 好鸟哥 - 全局配置
  * 上线前请把 appid / 广告位 ID 换成流量主后台的真实值
  */
 const CONFIG = {
-  name: '叠叠消物',
+  name: '好鸟哥',
   version: '1.2.0',
 
   storage: {
