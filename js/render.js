@@ -374,19 +374,6 @@ function hitButton(btn, x, y) {
   return x >= btn.x && y >= btn.y && x <= btn.x + btn.w && y <= btn.y + btn.h
 }
 
-function drawBannerPlaceholder(ctx, env) {
-  const y = env.height - env.bannerH
-  ctx.fillStyle = '#E7DCCE'
-  ctx.fillRect(0, y, env.width, env.bannerH)
-  ctx.fillStyle = '#9A8E82'
-  ctx.font = '13px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('Banner 广告位', env.width / 2, y + env.bannerH / 2 - 8)
-  ctx.font = '11px sans-serif'
-  ctx.fillText('请在 js/config.js 填写流量主广告 ID', env.width / 2, y + env.bannerH / 2 + 10)
-}
-
 class Particles {
   constructor() {
     this.list = []
@@ -449,7 +436,6 @@ module.exports = {
   drawSlot: drawSlot,
   drawButton: drawButton,
   hitButton: hitButton,
-  drawBannerPlaceholder: drawBannerPlaceholder,
   Particles: Particles,
   star: star,
   fillEllipse: fillEllipse,

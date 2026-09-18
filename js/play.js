@@ -1,5 +1,5 @@
 const { CONFIG, ITEMS } = require('./config')
-const { roundRect, drawBackground, drawCard, drawSlot, drawButton, hitButton, drawBannerPlaceholder, Particles } = require('./render')
+const { roundRect, drawBackground, drawCard, drawSlot, drawButton, hitButton, Particles } = require('./render')
 const board = require('./board')
 const ad = require('./ad')
 const audio = require('./audio')
@@ -202,7 +202,6 @@ class PlayScene {
     if (this.guide && !this.overlay) this.drawGuide(ctx, env)
     if (this.toast) this.drawToast(ctx, env)
     if (this.overlay) this.drawOverlay(ctx, env)
-    if (!ad.isBannerLive()) drawBannerPlaceholder(ctx, env)
   }
 
   drawHeader(ctx, env, L) {
@@ -371,7 +370,6 @@ class PlayScene {
   }
 
   onTouchStart(x, y) {
-    if (ad.hasMock()) return
     const L = this.layout
     if (hitButton(L.backBtn, x, y)) this.pressed = 'back'
     else if (hitButton(L.hintBtn, x, y)) this.pressed = 'hint'
@@ -380,10 +378,6 @@ class PlayScene {
 
   onTouchEnd(x, y) {
     this.pressed = null
-    if (ad.hasMock()) {
-      ad.tapMock(x, y, this.app.env)
-      return
-    }
     if (this.overlay) {
       this.handleOverlay(x, y)
       return

@@ -5,8 +5,6 @@
 const CONFIG = {
   name: '叠叠消物',
   version: '1.2.0',
-  /** 开发者工具 / 未配置广告位时，用模拟广告走完激励流程，方便自测。正式上线改为 false */
-  mockAdWhenUnavailable: true,
 
   storage: {
     level: 'ddxw_level',

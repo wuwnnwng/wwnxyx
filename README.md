@@ -18,11 +18,10 @@ ad: {
   rewarded: 'adunit-xxxxxxxx',      // 激励视频：搬移 / 提示 / 洗牌 / 复活
   interstitial: 'adunit-xxxxxxxx',  // 插屏：仅点「下一关」时弹出
   banner: 'adunit-xxxxxxxx'         // Banner：对局页底部常驻
-},
-mockAdWhenUnavailable: false        // 上线改为 false，避免用模拟广告发奖
+}
 ```
 
-开发者工具或广告位未配好时，激励视频会走 **开发模拟层**（倒计时后点领取），方便把玩法跑通。
+广告位未配置或播放失败时，激励视频会直接失败，不再使用模拟广告。
 
 ## 玩法摘要
 

@@ -59,10 +59,8 @@ function loop() {
   if (!paused) {
     const scene = app.scene === 'play' ? app.play : app.home
     scene.update(dt)
-    ad.updateMock(dt)
     ctx.clearRect(0, 0, env.width, env.height)
     scene.draw(ctx)
-    ad.drawMock(ctx, env)
   }
   requestAnimationFrame(loop)
 }
@@ -74,9 +72,9 @@ function touchXY(e) {
 }
 
 wx.onTouchStart(function (e) {
+  audio.unlock()
   const p = touchXY(e)
   if (!p) return
-  if (ad.hasMock()) return
   const scene = app.scene === 'play' ? app.play : app.home
   if (scene.onTouchStart) scene.onTouchStart(p.x, p.y)
 })
@@ -84,10 +82,6 @@ wx.onTouchStart(function (e) {
 wx.onTouchEnd(function (e) {
   const p = touchXY(e)
   if (!p) return
-  if (ad.hasMock()) {
-    ad.tapMock(p.x, p.y, env)
-    return
-  }
   const scene = app.scene === 'play' ? app.play : app.home
   if (scene.onTouchEnd) scene.onTouchEnd(p.x, p.y)
 })
@@ -101,6 +95,7 @@ wx.onHide(function () { paused = true })
 wx.onShow(function () {
   paused = false
   last = Date.now()
+  audio.unlock()
 })
 
 wx.onError(function (err) {

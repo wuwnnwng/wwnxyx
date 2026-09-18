@@ -99,8 +99,6 @@ class HomeScene {
       ctx.font = '12px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText('已解锁第 ' + level + ' 关    无尽最高分 ' + best, env.width / 2, L.help.y + 64)
-      ctx.font = '11px sans-serif'
-      ctx.fillText('全部道具与复活通过激励视频获取 · 无内购', env.width / 2, env.height - 28)
       ctx.globalAlpha = 1
     }
 
@@ -305,7 +303,6 @@ class HomeScene {
     const L = this.layout()
     if (p === 'sound' && hitButton(L.sound, x, y)) {
       audio.toggleSound()
-      audio.tap()
       return
     }
     if (p === 'help' && hitButton(L.help, x, y)) {
