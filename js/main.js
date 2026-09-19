@@ -51,6 +51,23 @@ app.play = new PlayScene(app)
 let last = Date.now()
 let paused = false
 
+function nextFrame(cb) {
+  if (canvas && typeof canvas.requestAnimationFrame === 'function') {
+    return canvas.requestAnimationFrame(cb)
+  }
+  if (typeof wx !== 'undefined' && typeof wx.requestAnimationFrame === 'function') {
+    return wx.requestAnimationFrame(cb)
+  }
+  const g = typeof GameGlobal !== 'undefined' ? GameGlobal : null
+  if (g && typeof g.requestAnimationFrame === 'function') {
+    return g.requestAnimationFrame(cb)
+  }
+  if (typeof requestAnimationFrame === 'function') {
+    return requestAnimationFrame(cb)
+  }
+  return setTimeout(function () { cb(Date.now()) }, 16)
+}
+
 function loop() {
   const now = Date.now()
   let dt = (now - last) / 1000
@@ -62,7 +79,7 @@ function loop() {
     ctx.clearRect(0, 0, env.width, env.height)
     scene.draw(ctx)
   }
-  requestAnimationFrame(loop)
+  nextFrame(loop)
 }
 
 function touchXY(e) {
@@ -103,4 +120,4 @@ wx.onError(function (err) {
 })
 
 console.log('[好鸟哥] v' + CONFIG.version + ' ' + env.width + 'x' + env.height)
-loop()
+nextFrame(loop)
