@@ -11,6 +11,9 @@ let ctx = null
 let enabled = true
 let unlocked = false
 let lastAt = 0
+let bgmPlaying = false
+let bgmWebSrc = null
+let bgmGain = null
 
 function initAudio() {
   enabled = loadJSON(CONFIG.storage.sound, 1) !== 0
@@ -56,6 +59,7 @@ function unlock() {
       src.start(0)
     } catch (e) {}
   }
+  if (enabled) startBgm()
   unlocked = true
 }
 
@@ -68,7 +72,9 @@ function toggleSound() {
   saveJSON(CONFIG.storage.sound, enabled ? 1 : 0)
   if (enabled) {
     unlock()
-    tap()
+    startBgm()
+  } else {
+    stopBgm()
   }
   return enabled
 }
@@ -117,6 +123,98 @@ function silence(dur) {
   return new Float32Array(Math.max(1, Math.floor(SAMPLE_RATE * dur)))
 }
 
+function mixAt(out, clip, atSec) {
+  const start = Math.floor(atSec * SAMPLE_RATE)
+  for (let i = 0; i < clip.length; i++) {
+    const p = start + i
+    if (p >= 0 && p < out.length) out[p] += clip[i]
+  }
+}
+
+function chirp(startF, endF, dur, vol) {
+  const n = Math.max(1, Math.floor(SAMPLE_RATE * dur))
+  const data = new Float32Array(n)
+  let phase = 0
+  for (let i = 0; i < n; i++) {
+    const t = i / n
+    const env = Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.08)), 1.15)
+    const f = startF + (endF - startF) * (t * t)
+    phase += (f * (1 + 0.03 * Math.sin(t * 36))) / SAMPLE_RATE
+    data[i] = Math.sin(2 * Math.PI * phase) * vol * env
+  }
+  return data
+}
+
+function coo(freq, dur, vol) {
+  const n = Math.max(1, Math.floor(SAMPLE_RATE * dur))
+  const data = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE
+    const env = envelope(i, n, 180, 900)
+    const s = Math.sin(2 * Math.PI * freq * t) + 0.35 * Math.sin(4 * Math.PI * freq * t)
+    data[i] = s * 0.55 * vol * env
+  }
+  return data
+}
+
+function airPad(dur, vol) {
+  const n = Math.max(1, Math.floor(SAMPLE_RATE * dur))
+  const data = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE
+    const env = 0.55 + 0.45 * Math.sin(t * 0.7)
+    data[i] = (
+      Math.sin(2 * Math.PI * 196 * t) * 0.35 +
+      Math.sin(2 * Math.PI * 247 * t) * 0.22 +
+      Math.sin(2 * Math.PI * 330 * t) * 0.12
+    ) * vol * env
+  }
+  return data
+}
+
+function buildBgmPcm() {
+  const dur = 10.5
+  const out = new Float32Array(Math.floor(SAMPLE_RATE * dur))
+  mixAt(out, airPad(dur, 0.07), 0)
+  mixAt(out, coo(392, 0.55, 0.16), 0.35)
+  mixAt(out, coo(349, 0.5, 0.12), 5.4)
+  const tweets = [
+    [0.6, 2100, 2800, 0.14],
+    [1.15, 1800, 2400, 0.11],
+    [1.85, 2400, 3200, 0.13],
+    [2.55, 1600, 2100, 0.1],
+    [3.2, 2200, 3100, 0.14],
+    [3.55, 1900, 2500, 0.09],
+    [4.4, 2500, 3400, 0.12],
+    [5.15, 1700, 2300, 0.11],
+    [6.05, 2100, 2900, 0.13],
+    [6.7, 2800, 3600, 0.1],
+    [7.45, 1500, 2000, 0.12],
+    [8.2, 2300, 3000, 0.13],
+    [8.85, 1900, 2600, 0.1],
+    [9.5, 2000, 2700, 0.12]
+  ]
+  for (let i = 0; i < tweets.length; i++) {
+    const tw = tweets[i]
+    mixAt(out, chirp(tw[1], tw[2], 0.16 + (i % 3) * 0.04, tw[3]), tw[0])
+    if (i % 3 === 0) mixAt(out, chirp(tw[1] * 0.92, tw[2] * 0.88, 0.12, tw[3] * 0.7), tw[0] + 0.16)
+  }
+  let peak = 0.001
+  for (let i = 0; i < out.length; i++) {
+    const a = Math.abs(out[i])
+    if (a > peak) peak = a
+  }
+  const k = 0.72 / peak
+  const fade = Math.floor(SAMPLE_RATE * 0.35)
+  for (let i = 0; i < out.length; i++) {
+    let g = k
+    if (i < fade) g *= i / fade
+    if (i > out.length - fade) g *= (out.length - 1 - i) / fade
+    out[i] *= g
+  }
+  return out
+}
+
 function buildAllPcm() {
   PCM.tap = tone(620, 0.07, 'triangle', 0.38)
   PCM.match = concat(tone(660, 0.08, 'sine', 0.4), silence(0.02), tone(920, 0.12, 'sine', 0.42))
@@ -137,6 +235,7 @@ function buildAllPcm() {
   )
   PCM.fail = tone(180, 0.32, 'triangle', 0.4, 90)
   PCM.lock = tone(300, 0.1, 'square', 0.22)
+  PCM.bgm = buildBgmPcm()
 }
 
 function floatToAudioBuffer(data) {
@@ -214,8 +313,9 @@ function makePlayer(name, path) {
       try { PLAYERS[name].destroy() } catch (e) {}
     }
     const a = wx.createInnerAudioContext()
+    a.loop = name === 'bgm'
     a.obeyMuteSwitch = false
-    a.volume = 1
+    a.volume = name === 'bgm' ? 0.38 : 1
     a.src = path
     a._ready = false
     a.onCanplay(function () { a._ready = true })
@@ -279,7 +379,7 @@ function playOneShot(name) {
 }
 
 function play(name) {
-  if (!enabled) return
+  if (!enabled || name === 'bgm') return
   unlock()
   const now = Date.now()
   if (now - lastAt < 30 && name === 'tap') return
@@ -291,6 +391,79 @@ function play(name) {
   }
   playWeb(name)
   if (!playInner(name)) playOneShot(name)
+}
+
+function stopBgmWeb() {
+  if (bgmWebSrc) {
+    try { bgmWebSrc.stop() } catch (e) {}
+    bgmWebSrc = null
+  }
+  bgmGain = null
+}
+
+function startBgmWeb() {
+  ensureWebCtx()
+  if (!ctx || !WEB_BUFFERS.bgm || !ctx.createBufferSource) return false
+  try {
+    stopBgmWeb()
+    if (ctx.resume) ctx.resume()
+    const src = ctx.createBufferSource()
+    const g = ctx.createGain()
+    g.gain.value = 0.38
+    src.buffer = WEB_BUFFERS.bgm
+    src.loop = true
+    src.connect(g)
+    g.connect(ctx.destination)
+    src.start(0)
+    bgmWebSrc = src
+    bgmGain = g
+    return true
+  } catch (e) {
+    return false
+  }
+}
+
+function startBgm() {
+  if (!enabled) return
+  const a = PLAYERS.bgm
+  if (a) {
+    try {
+      a.loop = true
+      a.volume = 0.38
+      a.play()
+      bgmPlaying = true
+      return
+    } catch (e) {}
+  }
+  if (startBgmWeb()) bgmPlaying = true
+}
+
+function stopBgm() {
+  bgmPlaying = false
+  const a = PLAYERS.bgm
+  if (a) {
+    try { a.stop() } catch (e) {}
+    try { if (a.pause) a.pause() } catch (e) {}
+  }
+  stopBgmWeb()
+}
+
+function pauseBgm() {
+  const a = PLAYERS.bgm
+  if (a) {
+    try { a.pause() } catch (e) {}
+  }
+  if (ctx && ctx.suspend) {
+    try { ctx.suspend() } catch (e) {}
+  }
+}
+
+function resumeBgm() {
+  if (!enabled) return
+  try {
+    if (ctx && ctx.resume) ctx.resume()
+  } catch (e) {}
+  startBgm()
 }
 
 function tap() { play('tap') }
@@ -306,6 +479,10 @@ module.exports = {
   unlock: unlock,
   isSoundOn: isSoundOn,
   toggleSound: toggleSound,
+  startBgm: startBgm,
+  stopBgm: stopBgm,
+  pauseBgm: pauseBgm,
+  resumeBgm: resumeBgm,
   tap: tap,
   match: match,
   synth: synth,

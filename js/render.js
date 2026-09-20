@@ -616,6 +616,71 @@ function drawDockTray(ctx, tray) {
   ctx.restore()
 }
 
+function drawToolBranch(ctx, x, y, w) {
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#5C3A1E'
+  ctx.lineWidth = 6
+  ctx.beginPath()
+  ctx.moveTo(x + 4, y)
+  ctx.quadraticCurveTo(x + w * 0.5, y + 8, x + w - 4, y - 1)
+  ctx.stroke()
+  ctx.strokeStyle = '#A67C52'
+  ctx.lineWidth = 2.4
+  ctx.beginPath()
+  ctx.moveTo(x + 8, y - 1)
+  ctx.quadraticCurveTo(x + w * 0.5, y + 4, x + w - 8, y - 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawBirdToolButton(ctx, btn, pressed, t) {
+  const y = btn.y + (pressed ? 2 : 0)
+  const x = btn.x
+  const w = btn.w
+  const h = btn.h
+  const pal = btn.pal || BIRD_PALETTE[0]
+  ctx.save()
+  ctx.shadowColor = 'rgba(70,42,20,0.24)'
+  ctx.shadowBlur = 10
+  ctx.shadowOffsetY = 3
+  roundRect(ctx, x, y, w, h, 18)
+  const g = ctx.createLinearGradient(x, y, x, y + h)
+  g.addColorStop(0, '#FFFBF3')
+  g.addColorStop(0.55, '#F6E4C8')
+  g.addColorStop(1, pal.wing)
+  ctx.fillStyle = g
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.strokeStyle = pressed ? pal.deep : 'rgba(201,162,74,0.75)'
+  ctx.lineWidth = pressed ? 2 : 1.5
+  ctx.stroke()
+
+  roundRect(ctx, x + 4, y + 4, w - 8, 28, 12)
+  ctx.fillStyle = 'rgba(255,251,245,0.35)'
+  ctx.fill()
+
+  drawCartoonBird(ctx, {
+    x: x + w / 2,
+    y: y + 18,
+    scale: 0.5,
+    face: btn.face || 1,
+    flap: (t || 0) * (btn.flap || 7) + (pressed ? 1.6 : 0),
+    rot: pressed ? 0.12 : Math.sin((t || 0) * 2.2 + x) * 0.06,
+    color: pal.color,
+    deep: pal.deep,
+    wing: pal.wing,
+    alpha: 1
+  })
+
+  ctx.fillStyle = '#5C3A1E'
+  ctx.font = 'bold 12px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(btn.label, x + w / 2, y + h - 11)
+  ctx.restore()
+}
+
 function drawButton(ctx, btn, pressed) {
   const y = btn.y + (pressed ? 1 : 0)
   roundRect(ctx, btn.x, y, btn.w, btn.h, btn.radius || 16)
@@ -699,6 +764,8 @@ module.exports = {
   drawSlot: drawSlot,
   drawDockTray: drawDockTray,
   drawButton: drawButton,
+  drawBirdToolButton: drawBirdToolButton,
+  drawToolBranch: drawToolBranch,
   hitButton: hitButton,
   Particles: Particles,
   star: star,

@@ -129,11 +129,15 @@ wx.onTouchCancel(function () {
   else if (scene.pressed) scene.pressed = null
 })
 
-wx.onHide(function () { paused = true })
+wx.onHide(function () {
+  paused = true
+  audio.pauseBgm()
+})
 wx.onShow(function () {
   paused = false
   last = Date.now()
   audio.unlock()
+  audio.resumeBgm()
 })
 
 wx.onError(function (err) {

@@ -1,5 +1,5 @@
 const { CONFIG, ITEMS } = require('./config')
-const { roundRect, drawBackground, drawCard, drawSlot, drawDockTray, drawButton, hitButton, Particles } = require('./render')
+const { roundRect, drawBackground, drawCard, drawSlot, drawDockTray, drawButton, drawBirdToolButton, drawToolBranch, hitButton, Particles, BIRD_PALETTE } = require('./render')
 const board = require('./board')
 const ad = require('./ad')
 const audio = require('./audio')
@@ -39,6 +39,7 @@ class PlayScene {
     this.layout = null
     this.drag = null
     this.hoverSlot = -1
+    this.history = []
   }
 
   start(mode, level) {
@@ -50,7 +51,7 @@ class PlayScene {
     this.cards = board.createBoard(this.cfg, this.layout.board, env.cardW, env.cardH)
     this.guide = mode === 'level' && this.cfg.level === 1
     this.overlay = null
-    ad.showBanner(env)
+    ad.hideBanner()
     if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
       this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
     }
@@ -63,15 +64,19 @@ class PlayScene {
     const headerH = 36
     const slotCount = CONFIG.move.slotCount
     const trayPadX = 10
-    const trayPadY = 8
+    const trayPadY = 6
     const gap = 5
-    const titleRow = 24
+    const titleRow = 20
     const slotW = Math.floor((env.width - trayPadX * 2 - 16 - gap * (slotCount - 1)) / slotCount)
-    const slotH = Math.round(slotW * 1.16)
-    const dockH = titleRow + slotH + trayPadY * 2
-    const boardY = headerY + headerH + 8
-    const boardH = Math.max(180, env.height - boardY - dockH - env.bannerH - 4)
-    const dockY = boardY + boardH + 4
+    const slotH = Math.round(slotW * 1.12)
+    const nestH = titleRow + slotH + trayPadY * 2
+    const btnH = 56
+    const toolsGap = 4
+    const bottomPad = Math.max(env.safeBottom, 6)
+    const boardY = headerY + headerH + 6
+    const toolsY = env.height - bottomPad - btnH
+    const dockY = toolsY - toolsGap - nestH
+    const boardH = Math.max(170, dockY - 4 - boardY)
     const slotsY = dockY + trayPadY + titleRow
     const slots = []
     const slotsX = trayPadX + 8
@@ -83,16 +88,31 @@ class PlayScene {
         h: slotH
       })
     }
-    const btnW = 46
-    const btnY = dockY + 6
+    const btnGap = 8
+    const btnW = Math.floor((env.width - 16 - btnGap * 3) / 4)
+    const bx = 8
+    function toolBtn(i, label, pal, face, flap) {
+      return {
+        x: bx + i * (btnW + btnGap),
+        y: toolsY,
+        w: btnW,
+        h: btnH,
+        label: label,
+        pal: pal,
+        face: face,
+        flap: flap
+      }
+    }
     return {
       headerY: headerY,
       headerH: headerH,
       board: { x: 8, y: boardY, w: env.width - 16, h: boardH },
-      dock: { x: 8, y: dockY, w: env.width - 16, h: dockH },
+      dock: { x: 8, y: dockY, w: env.width - 16, h: nestH },
       slots: slots,
-      hintBtn: { x: 18, y: btnY, w: btnW, h: 22, label: '提示', bg: '#6B8F71', radius: 11, font: 'bold 11px sans-serif' },
-      shuffleBtn: { x: env.width - 18 - btnW, y: btnY, w: btnW, h: 22, label: '洗牌', bg: '#E9C46A', color: '#5C3A1E', radius: 11, font: 'bold 11px sans-serif' },
+      undoBtn: toolBtn(0, '撤回', BIRD_PALETTE[2], 1, 7.2),
+      removeBtn: toolBtn(1, '移除', BIRD_PALETTE[0], -1, 8.1),
+      shuffleBtn: toolBtn(2, '洗牌', BIRD_PALETTE[3], 1, 6.4),
+      hintBtn: toolBtn(3, '提示', BIRD_PALETTE[1], -1, 7.6),
       backBtn: { x: 12, y: headerY, w: 48, h: 28, label: '返回', bg: 'rgba(61,64,91,0.12)', color: '#3D405B', radius: 14, font: '12px sans-serif' }
     }
   }
@@ -209,8 +229,11 @@ class PlayScene {
 
     this.particles.draw(ctx)
     this.drawFloaters(ctx)
-    drawButton(ctx, L.hintBtn, this.pressed === 'hint')
-    drawButton(ctx, L.shuffleBtn, this.pressed === 'shuffle')
+    drawToolBranch(ctx, 10, L.undoBtn.y + 22, env.width - 20)
+    drawBirdToolButton(ctx, L.undoBtn, this.pressed === 'undo', this.time)
+    drawBirdToolButton(ctx, L.removeBtn, this.pressed === 'remove', this.time)
+    drawBirdToolButton(ctx, L.shuffleBtn, this.pressed === 'shuffle', this.time)
+    drawBirdToolButton(ctx, L.hintBtn, this.pressed === 'hint', this.time)
 
     if (this.guide && !this.overlay) this.drawGuide(ctx, env)
     if (this.toast) this.drawToast(ctx, env)
@@ -477,12 +500,20 @@ class PlayScene {
       this.pressed = 'back'
       return
     }
-    if (hitButton(L.hintBtn, x, y)) {
-      this.pressed = 'hint'
+    if (hitButton(L.undoBtn, x, y)) {
+      this.pressed = 'undo'
+      return
+    }
+    if (hitButton(L.removeBtn, x, y)) {
+      this.pressed = 'remove'
       return
     }
     if (hitButton(L.shuffleBtn, x, y)) {
       this.pressed = 'shuffle'
+      return
+    }
+    if (hitButton(L.hintBtn, x, y)) {
+      this.pressed = 'hint'
       return
     }
   }
@@ -496,7 +527,6 @@ class PlayScene {
       d.active = true
       this.selected = d.card
       d.card.scale = 1.08
-      audio.tap()
     }
     if (!d.active) return
     d.card.x = x - d.grabX
@@ -536,12 +566,20 @@ class PlayScene {
       }
       return
     }
-    if (hitButton(L.hintBtn, x, y)) {
-      this.useHint()
+    if (hitButton(L.undoBtn, x, y)) {
+      this.useUndo()
+      return
+    }
+    if (hitButton(L.removeBtn, x, y)) {
+      this.useRemove()
       return
     }
     if (hitButton(L.shuffleBtn, x, y)) {
       this.useShuffle()
+      return
+    }
+    if (hitButton(L.hintBtn, x, y)) {
+      this.useHint()
       return
     }
     for (let i = 0; i < L.slots.length; i++) {
@@ -633,10 +671,17 @@ class PlayScene {
     if (!r || this.slots[index]) return
     this.selected = null
     card.scale = 1
+    this.history.push({
+      card: card,
+      x: card.x,
+      y: card.y,
+      w: card.w,
+      h: card.h,
+      layer: card.layer
+    })
     this.slots[index] = card
     card.slotIndex = index
     card.layer = 100 + index
-    audio.tap()
     try { wx.vibrateShort({ type: 'light' }) } catch (e) {}
     const self = this
     this.addAnim(card, {
@@ -834,35 +879,78 @@ class PlayScene {
   }
 
   useHint() {
-    const self = this
-    ad.showRewarded('hint').then(function (ok) {
-      if (!ok) {
-        self.showToast('未看完广告')
-        return
-      }
-      const pairs = board.clickableSamePairs(self.cards)
-      if (!pairs.length) {
-        self.showToast('当前没有可消除的对子')
-        return
-      }
-      self.hints = [pairs[0][0].id, pairs[0][1].id]
-      self.hintT = 2.8
-      self.showToast('已高亮一对可消除卡牌')
-    })
+    const pairs = board.clickableSamePairs(this.cards)
+    if (!pairs.length) {
+      this.showToast('当前没有可消除的对子')
+      return
+    }
+    this.hints = [pairs[0][0].id, pairs[0][1].id]
+    this.hintT = 2.8
+    this.showToast('已高亮一对可消除卡牌')
   }
 
   useShuffle() {
-    const self = this
-    ad.showRewarded('shuffle').then(function (ok) {
-      if (!ok) {
-        self.showToast('未看完广告')
-        return
-      }
-      board.shuffleBoard(self.cards, self.layout.board, self.cfg)
-      self.selected = null
-      self.showToast('已重新堆叠')
-      self.afterBoardChange()
-    })
+    board.shuffleBoard(this.cards, this.layout.board, this.cfg)
+    this.selected = null
+    this.showToast('已重新堆叠')
+    this.afterBoardChange()
+  }
+
+  useUndo() {
+    if (this.busy) return
+    while (this.history.length) {
+      const rec = this.history.pop()
+      const c = rec.card
+      if (!c || c.removed || c.slotIndex == null) continue
+      board.clearSlotOf(c, this.slots)
+      c.x = rec.x
+      c.y = rec.y
+      c.w = rec.w
+      c.h = rec.h
+      c.layer = rec.layer
+      c.scale = 1
+      board.compactSlots(this.slots, this.layout.slots)
+      this.showToast('已撤回')
+      return
+    }
+    this.showToast('没有可撤回的卡牌')
+  }
+
+  useRemove() {
+    if (this.busy) return
+    const parked = []
+    for (let i = 0; i < this.slots.length; i++) {
+      const c = this.slots[i]
+      if (c && !c.removed) parked.push(c)
+    }
+    if (!parked.length) {
+      this.showToast('鸟巢是空的')
+      return
+    }
+    let top = 0
+    for (let i = 0; i < this.cards.length; i++) {
+      const c = this.cards[i]
+      if (c.removed || c.slotIndex != null) continue
+      if (c.layer > top) top = c.layer
+    }
+    const box = this.layout.board
+    const n = parked.length
+    for (let i = 0; i < n; i++) {
+      const c = parked[i]
+      board.clearSlotOf(c, this.slots)
+      c.w = c.boardW || c.w
+      c.h = c.boardH || c.h
+      c.scale = 1
+      c.layer = top + 1
+      const span = n * (c.w + 6) - 6
+      c.x = box.x + Math.max(4, (box.w - span) / 2) + i * (c.w + 6)
+      c.y = box.y + box.h - c.h - 8
+      if (c.x < box.x) c.x = box.x
+      if (c.x + c.w > box.x + box.w) c.x = box.x + box.w - c.w
+    }
+    this.history = []
+    board.compactSlots(this.slots, this.layout.slots)
+    this.showToast('已移出鸟巢')
   }
 }
 

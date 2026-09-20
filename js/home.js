@@ -246,7 +246,7 @@ class HomeScene {
     ctx.fillStyle = 'rgba(35,31,28,0.5)'
     ctx.fillRect(0, 0, env.width, env.height)
     const pw = Math.min(330, env.width - 32)
-    const ph = 430
+    const ph = 490
     const px = (env.width - pw) / 2
     const py = (env.height - ph) / 2
     roundRect(ctx, px, py, pw, ph, 18)
@@ -266,13 +266,15 @@ class HomeScene {
       '同时翻开 4 张同款普通牌也会合成高级牌',
       '达到本关目标分数即通关，不必清空',
       '锁块：消除相邻 2 张卡后解锁',
-      '提示 / 洗牌 / 暂存满后复活需看广告'
+      '撤回可把刚放进鸟巢的卡退回原位',
+      '移除会把鸟巢里的卡全部放回场上',
+      '提示 / 洗牌 / 撤回 / 移除可直接使用'
     ]
     ctx.font = '13px sans-serif'
     ctx.fillStyle = '#5C574F'
     ctx.textAlign = 'left'
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText((i + 1) + '. ' + lines[i], px + 22, py + 68 + i * 28)
+      ctx.fillText((i + 1) + '. ' + lines[i], px + 22, py + 68 + i * 26)
     }
     drawButton(ctx, {
       x: env.width / 2 - 60, y: py + ph - 58, w: 120, h: 38,

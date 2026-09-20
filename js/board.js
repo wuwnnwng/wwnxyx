@@ -17,13 +17,20 @@ function activeCards(cards) {
 
 function isCovered(card, cards) {
   if (card.slotIndex != null) return false
-  const minArea = card.w * card.h * CONFIG.card.coverOverlap
+  const ix = card.w * 0.22
+  const iy = card.h * 0.22
+  const inner = {
+    x: card.x + ix,
+    y: card.y + iy,
+    w: Math.max(10, card.w - ix * 2),
+    h: Math.max(10, card.h - iy * 2)
+  }
   for (let i = 0; i < cards.length; i++) {
     const o = cards[i]
     if (o.removed || o.id === card.id) continue
     if (o.slotIndex != null) continue
     if (o.layer <= card.layer) continue
-    if (rectsOverlapArea(card, o) >= minArea) return true
+    if (rectsOverlapArea(inner, o) > 8) return true
   }
   return false
 }
@@ -296,11 +303,15 @@ function findCardAt(cards, x, y) {
     const sb = b.slotIndex != null ? 1000 : 0
     return (b.layer + sb) - (a.layer + sa)
   })
+  let blocked = null
   for (let i = 0; i < list.length; i++) {
     const c = list[i]
-    if (x >= c.x && y >= c.y && x <= c.x + c.w && y <= c.y + c.h) return c
+    if (x < c.x || y < c.y || x > c.x + c.w || y > c.y + c.h) continue
+    if (c.slotIndex != null) return c
+    if (!isCovered(c, cards)) return c
+    if (!blocked) blocked = c
   }
-  return null
+  return blocked
 }
 
 function clickableSamePairs(cards) {
