@@ -49,7 +49,7 @@
   },
   "compileType": "game",
   "libVersion": "3.8.0",
-  "appid": "touristappid",
+  "appid": "wx4bce45b682594eb4",
   "projectname": "好鸟哥",
   "condition": {},
   "simulatorType": "wechat",
@@ -57,5 +57,6 @@
   "editorSetting": {
     "tabIndent": "insertSpaces",
     "tabSize": 2
-  }
+  },
+  "isGameTourist": false
 }
