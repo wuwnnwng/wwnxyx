@@ -5,6 +5,14 @@
       {
         "type": "file",
         "value": ".gitignore"
+      },
+      {
+        "type": "file",
+        "value": "id_rsa.conf"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
       }
     ]
   },

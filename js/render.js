@@ -23,27 +23,181 @@ function fillEllipse(ctx, x, y, rx, ry, rot) {
   ctx.restore()
 }
 
+const BIRD_PALETTE = [
+  { color: '#E07A5F', deep: '#C45C42', wing: '#F2A488' },
+  { color: '#81B29A', deep: '#5E8C76', wing: '#A7D4C0' },
+  { color: '#7EB6D9', deep: '#5A93B8', wing: '#B5D8EE' },
+  { color: '#E9C46A', deep: '#C9A24A', wing: '#F6DEA0' },
+  { color: '#3D405B', deep: '#2B2D42', wing: '#6C6F8A' },
+  { color: '#F2CC8F', deep: '#D4A86A', wing: '#FFE8BE' }
+]
+
+const BG_BIRDS = [
+  { px: 0.14, py: 0.20, s: 1.15, pal: 0, face: 1, spd: 0.55, flap: 7.2, drift: 22 },
+  { px: 0.86, py: 0.17, s: 0.95, pal: 2, face: -1, spd: 0.42, flap: 8.1, drift: 18 },
+  { px: 0.08, py: 0.46, s: 1.35, pal: 1, face: 1, spd: 0.33, flap: 6.4, drift: 14 },
+  { px: 0.92, py: 0.42, s: 1.20, pal: 3, face: -1, spd: 0.48, flap: 7.6, drift: 16 },
+  { px: 0.22, py: 0.78, s: 1.05, pal: 5, face: 1, spd: 0.38, flap: 6.8, drift: 20 },
+  { px: 0.78, py: 0.74, s: 1.28, pal: 0, face: -1, spd: 0.51, flap: 7.9, drift: 15 },
+  { px: 0.50, py: 0.12, s: 0.72, pal: 2, face: 1, spd: 0.62, flap: 9.0, drift: 28 },
+  { px: 0.62, py: 0.88, s: 0.88, pal: 1, face: -1, spd: 0.29, flap: 6.2, drift: 12 }
+]
+
+function drawCartoonBird(ctx, b) {
+  const flap = Math.sin(b.flap)
+  ctx.save()
+  ctx.translate(b.x, b.y)
+  ctx.rotate(b.rot || 0)
+  ctx.scale((b.scale || 1) * (b.face || 1), b.scale || 1)
+  ctx.globalAlpha = b.alpha == null ? 1 : b.alpha
+
+  ctx.fillStyle = b.deep
+  ctx.beginPath()
+  ctx.moveTo(-16, 2)
+  ctx.quadraticCurveTo(-28, -10 + flap * 6, -24, 12)
+  ctx.quadraticCurveTo(-14, 8, -10, 4)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.save()
+  ctx.rotate(-0.55 + flap * 0.85)
+  ctx.fillStyle = b.wing
+  fillEllipse(ctx, -4, -4, 16, 7, 0.15)
+  ctx.fillStyle = b.deep
+  fillEllipse(ctx, -6, -4, 8, 3.2, 0.15)
+  ctx.restore()
+
+  ctx.fillStyle = b.color
+  fillEllipse(ctx, 0, 3, 16, 13, 0)
+  ctx.fillStyle = '#FFFBF5'
+  fillEllipse(ctx, 3, 7, 9, 7, 0)
+
+  ctx.save()
+  ctx.rotate(0.2 - flap * 0.95)
+  ctx.fillStyle = b.wing
+  fillEllipse(ctx, 2, 1, 17, 7.5, 0)
+  ctx.fillStyle = 'rgba(255,251,245,0.35)'
+  fillEllipse(ctx, 4, 0, 10, 3.4, 0)
+  ctx.restore()
+
+  ctx.fillStyle = b.color
+  fillEllipse(ctx, 11, -8, 11, 10, 0)
+  ctx.fillStyle = 'rgba(224,122,95,0.38)'
+  fillEllipse(ctx, 15, -5, 3.2, 2.2, 0)
+
+  ctx.fillStyle = '#2B2D42'
+  ctx.beginPath()
+  ctx.arc(14, -10, 2.3, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#fff'
+  ctx.beginPath()
+  ctx.arc(14.8, -10.8, 0.85, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#E9C46A'
+  ctx.beginPath()
+  ctx.moveTo(21, -9)
+  ctx.lineTo(30, -6.5)
+  ctx.lineTo(21, -3.5)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = '#C9A24A'
+  ctx.beginPath()
+  ctx.moveTo(21, -6.4)
+  ctx.lineTo(27, -6.5)
+  ctx.lineTo(21, -3.8)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.restore()
+}
+
+function drawBirdSilhouette(ctx, x, y, s, a) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.scale(s, s)
+  ctx.globalAlpha = a
+  ctx.strokeStyle = '#3D405B'
+  ctx.lineWidth = 2.2
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(-10, 0)
+  ctx.quadraticCurveTo(-4, -6, 0, 0)
+  ctx.quadraticCurveTo(4, -6, 10, 0)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawCloud(ctx, x, y, s, a) {
+  ctx.save()
+  ctx.globalAlpha = a
+  ctx.fillStyle = '#FFFBF5'
+  fillEllipse(ctx, x, y, 38 * s, 16 * s, 0)
+  fillEllipse(ctx, x - 22 * s, y + 4 * s, 22 * s, 12 * s, 0)
+  fillEllipse(ctx, x + 24 * s, y + 3 * s, 24 * s, 13 * s, 0)
+  ctx.restore()
+}
+
 function drawBackground(ctx, env, t) {
   const w = env.width
   const h = env.height
   const g = ctx.createLinearGradient(0, 0, 0, h)
-  g.addColorStop(0, '#F7F0E6')
-  g.addColorStop(0.55, '#F3E6D6')
+  g.addColorStop(0, '#A8D4F0')
+  g.addColorStop(0.28, '#D4EBF8')
+  g.addColorStop(0.62, '#F4EBDD')
   g.addColorStop(1, '#E9D7C4')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, w, h)
 
   ctx.save()
-  ctx.globalAlpha = 0.18
-  ctx.fillStyle = '#E07A5F'
-  fillEllipse(ctx, w * 0.18, 120 + Math.sin(t * 0.4) * 8, 90, 70, 0)
-  ctx.fillStyle = '#81B29A'
-  fillEllipse(ctx, w * 0.86, 220, 70, 55, 0)
-  ctx.fillStyle = '#F2CC8F'
-  fillEllipse(ctx, w * 0.7, h * 0.62, 110, 86, 0)
+  ctx.globalAlpha = 0.22
   ctx.fillStyle = '#7EB6D9'
-  fillEllipse(ctx, w * 0.12, h * 0.7, 80, 62, 0)
+  fillEllipse(ctx, w * 0.18, 108 + Math.sin(t * 0.35) * 6, 92, 58, 0)
+  ctx.fillStyle = '#E07A5F'
+  fillEllipse(ctx, w * 0.88, 168, 70, 48, 0)
+  ctx.fillStyle = '#F2CC8F'
+  fillEllipse(ctx, w * 0.72, h * 0.68, 100, 70, 0)
   ctx.restore()
+
+  drawCloud(ctx, w * 0.22 + Math.sin(t * 0.12) * 10, 86, 1.05, 0.42)
+  drawCloud(ctx, w * 0.78 + Math.cos(t * 0.1) * 12, 132, 0.92, 0.34)
+  drawCloud(ctx, w * 0.52, h * 0.58 + Math.sin(t * 0.16) * 8, 1.2, 0.18)
+
+  drawBirdSilhouette(ctx, w * 0.30, 70 + Math.sin(t * 0.5) * 4, 1.1, 0.16)
+  drawBirdSilhouette(ctx, w * 0.38, 58 + Math.cos(t * 0.4) * 3, 0.75, 0.12)
+  drawBirdSilhouette(ctx, w * 0.70, 96 + Math.sin(t * 0.45 + 1) * 5, 0.95, 0.14)
+  drawBirdSilhouette(ctx, w * 0.78, 84, 0.62, 0.10)
+
+  const markPal = BIRD_PALETTE[0]
+  drawCartoonBird(ctx, {
+    x: w * 0.5,
+    y: h * 0.42 + Math.sin(t * 0.35) * 6,
+    scale: Math.min(w, h) / 52,
+    face: 1,
+    flap: t * 2.2,
+    rot: Math.sin(t * 0.25) * 0.04,
+    color: markPal.color,
+    deep: markPal.deep,
+    wing: markPal.wing,
+    alpha: 0.10
+  })
+
+  for (let i = 0; i < BG_BIRDS.length; i++) {
+    const spec = BG_BIRDS[i]
+    const pal = BIRD_PALETTE[spec.pal]
+    drawCartoonBird(ctx, {
+      x: w * spec.px + Math.sin(t * spec.spd + i) * spec.drift,
+      y: h * spec.py + Math.cos(t * spec.spd * 0.8 + i * 0.7) * (spec.drift * 0.45),
+      scale: spec.s,
+      face: spec.face,
+      flap: t * spec.flap + i,
+      rot: Math.sin(t * spec.spd + i) * 0.08,
+      color: pal.color,
+      deep: pal.deep,
+      wing: pal.wing,
+      alpha: 0.38
+    })
+  }
 }
 
 function drawItemIcon(ctx, key, cx, cy, s, color, deep) {
@@ -226,9 +380,9 @@ function drawCard(ctx, card, opt) {
   ctx.scale(scale, scale)
   ctx.translate(-cx, -cy)
 
-  ctx.shadowColor = 'rgba(61,64,91,0.18)'
-  ctx.shadowBlur = 10
-  ctx.shadowOffsetY = 3
+  ctx.shadowColor = o.lift ? 'rgba(61,64,91,0.38)' : 'rgba(61,64,91,0.18)'
+  ctx.shadowBlur = o.lift ? 22 : 10
+  ctx.shadowOffsetY = o.lift ? 12 : 3
   roundRect(ctx, x, y, w, h, 10)
   ctx.fillStyle = card.advanced ? '#FFF6D8' : '#FFFBF5'
   ctx.fill()
@@ -342,15 +496,124 @@ function drawLockIcon(ctx, x, y, s) {
   ctx.restore()
 }
 
-function drawSlot(ctx, rect, filled, highlight) {
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 8)
-  ctx.fillStyle = highlight ? 'rgba(224,122,95,0.22)' : (filled ? 'rgba(255,251,245,0.18)' : 'rgba(255,251,245,0.55)')
+function drawFeather(ctx, x, y, rot, s, color) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(rot)
+  ctx.scale(s, s)
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(0, -16)
+  ctx.quadraticCurveTo(7, -2, 1, 14)
+  ctx.quadraticCurveTo(-7, -2, 0, -16)
   ctx.fill()
-  ctx.strokeStyle = highlight ? '#E07A5F' : '#CABCAB'
-  ctx.lineWidth = highlight ? 2 : 1.2
-  try { ctx.setLineDash(filled ? [] : [4, 3]) } catch (e) {}
+  ctx.strokeStyle = 'rgba(255,251,245,0.4)'
+  ctx.lineWidth = 0.9
+  ctx.beginPath()
+  ctx.moveTo(0, -12)
+  ctx.lineTo(0, 10)
   ctx.stroke()
-  try { ctx.setLineDash([]) } catch (e) {}
+  ctx.restore()
+}
+
+function drawSlot(ctx, rect, filled, highlight, index) {
+  const x = rect.x
+  const y = rect.y
+  const w = rect.w
+  const h = rect.h
+  const cx = x + w / 2
+  const cy = y + h / 2
+  const rx = w / 2
+  const ry = h / 2
+
+  ctx.save()
+  ctx.fillStyle = highlight ? '#C9A24A' : '#5A3A22'
+  fillEllipse(ctx, cx, cy + 1, rx, ry, 0)
+
+  ctx.fillStyle = highlight ? '#F6E3B8' : '#7A4E2E'
+  fillEllipse(ctx, cx, cy, rx - 1.5, ry - 1.8, 0)
+
+  ctx.fillStyle = filled
+    ? (highlight ? 'rgba(233,196,106,0.28)' : 'rgba(62,42,24,0.55)')
+    : (highlight ? 'rgba(255,251,245,0.55)' : 'rgba(92,58,32,0.55)')
+  fillEllipse(ctx, cx, cy - 1, rx - 4, ry - 5, 0)
+
+  if (!filled) {
+    ctx.fillStyle = highlight ? 'rgba(92,58,32,0.45)' : 'rgba(255,236,210,0.55)'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String((index == null ? 0 : index) + 1), cx, cy)
+  }
+  ctx.restore()
+}
+
+function drawDockTray(ctx, tray) {
+  const x = tray.x
+  const y = tray.y
+  const w = tray.w
+  const h = tray.h
+  const r = 26
+  ctx.save()
+  ctx.shadowColor = 'rgba(70,42,20,0.32)'
+  ctx.shadowBlur = 16
+  ctx.shadowOffsetY = 5
+  roundRect(ctx, x, y, w, h, r)
+  const body = ctx.createLinearGradient(x, y, x, y + h)
+  body.addColorStop(0, '#A97848')
+  body.addColorStop(0.45, '#7A4E2E')
+  body.addColorStop(1, '#4E2F1A')
+  ctx.fillStyle = body
+  ctx.fill()
+  ctx.shadowBlur = 0
+
+  ctx.save()
+  roundRect(ctx, x, y, w, h, r)
+  ctx.clip()
+  const twigs = ['#5C3A1E', '#8A5A32', '#C4A574', '#6B4226', '#A67C52', '#3E2414']
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 22; i++) {
+    const yy = y + 5 + ((i * 13) % (h - 8))
+    ctx.strokeStyle = twigs[i % twigs.length]
+    ctx.globalAlpha = 0.55
+    ctx.lineWidth = 2 + (i % 3)
+    ctx.beginPath()
+    ctx.moveTo(x + 4, yy)
+    ctx.bezierCurveTo(
+      x + w * 0.28, yy - 9 + (i % 3) * 6,
+      x + w * 0.72, yy + 10 - (i % 4) * 5,
+      x + w - 4, yy + (i % 5) - 2
+    )
+    ctx.stroke()
+  }
+  for (let i = 0; i < 10; i++) {
+    const xx = x + 12 + (w - 24) * (i / 9)
+    ctx.strokeStyle = twigs[(i + 3) % twigs.length]
+    ctx.globalAlpha = 0.4
+    ctx.lineWidth = 1.8
+    ctx.beginPath()
+    ctx.moveTo(xx, y + 3)
+    ctx.quadraticCurveTo(xx + (i % 2 ? 10 : -10), y + h * 0.5, xx + (i % 3 - 1) * 8, y + h - 3)
+    ctx.stroke()
+  }
+  ctx.restore()
+
+  roundRect(ctx, x + 7, y + 7, w - 14, h - 14, 20)
+  ctx.fillStyle = 'rgba(62,42,24,0.28)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(233,196,106,0.28)'
+  ctx.lineWidth = 1.2
+  ctx.stroke()
+
+  ctx.strokeStyle = 'rgba(196,165,116,0.55)'
+  ctx.lineWidth = 3
+  roundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, r - 1)
+  ctx.stroke()
+
+  drawFeather(ctx, x + 16, y + 10, -0.7, 0.85, '#E07A5F')
+  drawFeather(ctx, x + w - 18, y + 12, 0.65, 0.8, '#81B29A')
+  drawFeather(ctx, x + 28, y + h - 8, -2.4, 0.7, '#F2CC8F')
+  ctx.restore()
 }
 
 function drawButton(ctx, btn, pressed) {
@@ -434,11 +697,14 @@ module.exports = {
   drawItemIcon: drawItemIcon,
   drawCard: drawCard,
   drawSlot: drawSlot,
+  drawDockTray: drawDockTray,
   drawButton: drawButton,
   hitButton: hitButton,
   Particles: Particles,
   star: star,
   fillEllipse: fillEllipse,
   lerp: lerp,
-  clamp: clamp
+  clamp: clamp,
+  drawCartoonBird: drawCartoonBird,
+  BIRD_PALETTE: BIRD_PALETTE
 }

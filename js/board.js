@@ -283,7 +283,7 @@ function createBoard(cfg, box, cardW, cardH) {
   let slotCount = countStackSlots(plan.cols, plan.rows, plan.layers)
   if (slotCount % 2) slotCount -= 1
   const cards = buildDeck(slotCount, cfg.types, cfg.advancedPairs || 0)
-  layoutStack(cards, box, cfg, 78, 94)
+  layoutStack(cards, box, cfg, 92, 112)
   assignLocks(cards, cfg.locks)
   balanceOpening(cards)
   ensureOpeningMatch(cards)
@@ -457,7 +457,7 @@ function shuffleBoard(cards, box, cfg) {
   }
   if (!pile.length) return
   const spec = cfg || { cols: 5, rows: 4, layers: 2 }
-  layoutStack(pile, box, spec, 78, 94)
+  layoutStack(pile, box, spec, 92, 112)
   ensureOpeningMatch(cards)
 }
 

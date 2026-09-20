@@ -1,5 +1,5 @@
 const { CONFIG, ITEMS } = require('./config')
-const { roundRect, drawBackground, drawCard, drawSlot, drawButton, hitButton, Particles } = require('./render')
+const { roundRect, drawBackground, drawCard, drawSlot, drawDockTray, drawButton, hitButton, Particles } = require('./render')
 const board = require('./board')
 const ad = require('./ad')
 const audio = require('./audio')
@@ -37,6 +37,8 @@ class PlayScene {
     this.pressed = null
     this.interstitialShown = false
     this.layout = null
+    this.drag = null
+    this.hoverSlot = -1
   }
 
   start(mode, level) {
@@ -58,34 +60,39 @@ class PlayScene {
 
   buildLayout(env) {
     const headerY = env.safeTop
-    const headerH = 58
+    const headerH = 36
     const slotCount = CONFIG.move.slotCount
-    const sidePad = 10
-    const gap = 4
-    const slotW = Math.floor((env.width - sidePad * 2 - gap * (slotCount - 1)) / slotCount)
-    const slotH = Math.round(slotW * 1.22)
-    const toolsH = 36 + slotH + 28
-    const boardY = headerY + headerH + 18
-    const boardH = env.height - boardY - toolsH - env.bannerH
-    const barY = boardY + boardH + 8
-    const slotsY = barY + 32
+    const trayPadX = 10
+    const trayPadY = 8
+    const gap = 5
+    const titleRow = 24
+    const slotW = Math.floor((env.width - trayPadX * 2 - 16 - gap * (slotCount - 1)) / slotCount)
+    const slotH = Math.round(slotW * 1.16)
+    const dockH = titleRow + slotH + trayPadY * 2
+    const boardY = headerY + headerH + 8
+    const boardH = Math.max(180, env.height - boardY - dockH - env.bannerH - 4)
+    const dockY = boardY + boardH + 4
+    const slotsY = dockY + trayPadY + titleRow
     const slots = []
+    const slotsX = trayPadX + 8
     for (let i = 0; i < slotCount; i++) {
       slots.push({
-        x: sidePad + i * (slotW + gap),
+        x: slotsX + i * (slotW + gap),
         y: slotsY,
         w: slotW,
         h: slotH
       })
     }
-    const btnW = 52
+    const btnW = 46
+    const btnY = dockY + 6
     return {
       headerY: headerY,
       headerH: headerH,
-      board: { x: 10, y: boardY, w: env.width - 20, h: boardH },
+      board: { x: 8, y: boardY, w: env.width - 16, h: boardH },
+      dock: { x: 8, y: dockY, w: env.width - 16, h: dockH },
       slots: slots,
-      hintBtn: { x: 12, y: barY, w: btnW, h: 28, label: '提示', bg: '#81B29A', radius: 14, font: 'bold 12px sans-serif' },
-      shuffleBtn: { x: env.width - 12 - btnW, y: barY, w: btnW, h: 28, label: '洗牌', bg: '#E9C46A', color: '#3D405B', radius: 14, font: 'bold 12px sans-serif' },
+      hintBtn: { x: 18, y: btnY, w: btnW, h: 22, label: '提示', bg: '#6B8F71', radius: 11, font: 'bold 11px sans-serif' },
+      shuffleBtn: { x: env.width - 18 - btnW, y: btnY, w: btnW, h: 22, label: '洗牌', bg: '#E9C46A', color: '#5C3A1E', radius: 11, font: 'bold 11px sans-serif' },
       backBtn: { x: 12, y: headerY, w: 48, h: 28, label: '返回', bg: 'rgba(61,64,91,0.12)', color: '#3D405B', radius: 14, font: '12px sans-serif' }
     }
   }
@@ -167,15 +174,19 @@ class PlayScene {
       return la - lb
     })
 
-    const wantMove = this.selected && this.selected.slotIndex == null
+    const wantMove = (this.selected && this.selected.slotIndex == null) || (this.drag && this.drag.active)
+    drawDockTray(ctx, L.dock)
     for (let i = 0; i < L.slots.length; i++) {
-      drawSlot(ctx, L.slots[i], !!this.slots[i], wantMove && !this.slots[i])
+      const hover = this.hoverSlot === i && wantMove
+      drawSlot(ctx, L.slots[i], !!this.slots[i], hover || (wantMove && !this.slots[i] && this.hoverSlot < 0), i)
     }
+    this.drawDockTitle(ctx, env, L)
 
     let selectedCard = null
+    const liftId = this.drag && this.drag.active ? this.drag.card.id : (this.selected && this.selected.id)
     for (let i = 0; i < list.length; i++) {
       const c = list[i]
-      if (this.selected && this.selected.id === c.id) {
+      if (liftId && liftId === c.id) {
         selectedCard = c
         continue
       }
@@ -189,7 +200,8 @@ class PlayScene {
     if (selectedCard) {
       drawCard(ctx, selectedCard, {
         covered: false,
-        selected: true,
+        selected: !this.drag || !this.drag.active,
+        lift: this.drag && this.drag.active,
         hint: this.hints.indexOf(selectedCard.id) >= 0,
         hintPulse: 0.5 + 0.5 * Math.sin(this.time * 8)
       })
@@ -197,7 +209,8 @@ class PlayScene {
 
     this.particles.draw(ctx)
     this.drawFloaters(ctx)
-    this.drawFooter(ctx, L)
+    drawButton(ctx, L.hintBtn, this.pressed === 'hint')
+    drawButton(ctx, L.shuffleBtn, this.pressed === 'shuffle')
 
     if (this.guide && !this.overlay) this.drawGuide(ctx, env)
     if (this.toast) this.drawToast(ctx, env)
@@ -210,66 +223,55 @@ class PlayScene {
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#3D405B'
-    ctx.font = 'bold 18px sans-serif'
-    ctx.fillText(CONFIG.name, 68, L.headerY + 14)
+    ctx.font = 'bold 17px sans-serif'
+    ctx.fillText(CONFIG.name, 68, L.headerY + 10)
 
     ctx.font = '11px sans-serif'
     ctx.fillStyle = '#8A8178'
     const sub = this.mode === 'endless' ? '无尽模式' : ('第' + this.cfg.level + '关 · ' + this.cfg.name)
-    ctx.fillText(sub, 68, L.headerY + 34)
+    ctx.fillText(sub, 68, L.headerY + 26)
 
     const scoreX = env.width - 16
     ctx.textAlign = 'right'
     ctx.fillStyle = '#3D405B'
-    ctx.font = 'bold 20px sans-serif'
+    ctx.font = 'bold 18px sans-serif'
     if (this.mode === 'endless') {
       const best = loadJSON(CONFIG.storage.endlessBest, 0) || 0
-      ctx.fillText(formatScore(this.score), scoreX, L.headerY + 16)
-      ctx.font = '11px sans-serif'
+      ctx.fillText(formatScore(this.score), scoreX, L.headerY + 10)
+      ctx.font = '10px sans-serif'
       ctx.fillStyle = '#8A8178'
-      ctx.fillText('最高 ' + formatScore(best), scoreX, L.headerY + 36)
+      ctx.fillText('最高 ' + formatScore(best), scoreX, L.headerY + 26)
     } else {
-      ctx.fillText(formatScore(this.score) + ' / ' + this.cfg.target, scoreX, L.headerY + 16)
-      ctx.font = '11px sans-serif'
+      ctx.fillText(formatScore(this.score) + ' / ' + this.cfg.target, scoreX, L.headerY + 10)
+      ctx.font = '10px sans-serif'
       ctx.fillStyle = '#8A8178'
-      ctx.fillText('目标分数', scoreX, L.headerY + 36)
+      ctx.fillText('目标分数', scoreX, L.headerY + 26)
     }
 
-    const chipY = L.headerY + L.headerH - 2
+    if (this.combo >= 2) {
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#E07A5F'
+      ctx.font = 'bold 13px sans-serif'
+      ctx.fillText('连击 x' + this.combo, env.width / 2, L.headerY + L.headerH + 2)
+    }
+  }
+
+  drawDockTitle(ctx, env, L) {
     let filled = 0
     for (let i = 0; i < this.slots.length; i++) {
       if (this.slots[i] && !this.slots[i].removed) filled++
     }
-    roundRect(ctx, 12, chipY, 108, 22, 11)
-    ctx.fillStyle = '#FFFBF5'
-    ctx.fill()
-    ctx.fillStyle = filled >= this.slots.length ? '#C45C42' : '#E07A5F'
-    ctx.font = 'bold 12px sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('暂存  ' + filled + '/' + this.slots.length, 66, chipY + 12)
-
-    if (this.combo >= 2) {
-      ctx.fillStyle = '#E07A5F'
-      ctx.font = 'bold 14px sans-serif'
-      ctx.fillText('连击 x' + this.combo, env.width / 2, chipY + 12)
-    }
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#FFF6E8'
+    ctx.font = 'bold 12px sans-serif'
+    ctx.fillText('鸟巢  ' + filled + '/' + this.slots.length, env.width / 2, L.dock.y + 17)
   }
 
   drawBoardFrame(ctx, L) {
     roundRect(ctx, L.board.x, L.board.y, L.board.w, L.board.h, 16)
-    ctx.fillStyle = 'rgba(255,251,245,0.28)'
+    ctx.fillStyle = 'rgba(255,251,245,0.14)'
     ctx.fill()
-  }
-
-  drawFooter(ctx, L) {
-    const env = this.app.env
-    ctx.fillStyle = '#8A8178'
-    ctx.font = 'bold 12px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('暂存区 · 相同自动消除', env.width / 2, L.hintBtn.y + 14)
-    drawButton(ctx, L.hintBtn, this.pressed === 'hint')
-    drawButton(ctx, L.shuffleBtn, this.pressed === 'shuffle')
   }
 
   drawFloaters(ctx) {
@@ -307,10 +309,10 @@ class PlayScene {
     ctx.font = '13px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('点两张相同卡牌消除，或放入暂存区自动对消', env.width / 2, env.safeTop + 108)
+    ctx.fillText('点卡牌会飞进鸟巢，相同自动消除', env.width / 2, env.safeTop + 108)
     ctx.font = '11px sans-serif'
     ctx.fillStyle = '#F2CC8F'
-    ctx.fillText('暂存 7 格，两张一样会立刻消除', env.width / 2, env.safeTop + 126)
+    ctx.fillText('鸟巢 7 格，两张一样会立刻消除', env.width / 2, env.safeTop + 126)
   }
 
   drawOverlay(ctx, env) {
@@ -369,14 +371,155 @@ class PlayScene {
     ]
   }
 
-  onTouchStart(x, y) {
+  slotIndexAt(x, y) {
     const L = this.layout
-    if (hitButton(L.backBtn, x, y)) this.pressed = 'back'
-    else if (hitButton(L.hintBtn, x, y)) this.pressed = 'hint'
-    else if (hitButton(L.shuffleBtn, x, y)) this.pressed = 'shuffle'
+    if (!L) return -1
+    for (let i = 0; i < L.slots.length; i++) {
+      if (pointInRect(x, y, L.slots[i])) return i
+    }
+    if (L.dock && pointInRect(x, y, L.dock)) {
+      let best = -1
+      let bestD = 1e9
+      for (let i = 0; i < L.slots.length; i++) {
+        const s = L.slots[i]
+        const dx = x - (s.x + s.w / 2)
+        const dy = y - (s.y + s.h / 2)
+        const d = dx * dx + dy * dy
+        if (d < bestD) {
+          bestD = d
+          best = i
+        }
+      }
+      return best
+    }
+    return -1
+  }
+
+  beginDrag(card, x, y) {
+    this.drag = {
+      card: card,
+      grabX: x - card.x,
+      grabY: y - card.y,
+      originX: card.x,
+      originY: card.y,
+      startX: x,
+      startY: y,
+      active: false
+    }
+    this.hoverSlot = -1
+  }
+
+  restoreDrag() {
+    const d = this.drag
+    if (!d || !d.card) return
+    d.card.x = d.originX
+    d.card.y = d.originY
+    d.card.scale = 1
+    this.hoverSlot = -1
+  }
+
+  finishDrag(x, y) {
+    const d = this.drag
+    this.drag = null
+    this.hoverSlot = -1
+    if (!d || !d.card || d.card.removed) return
+    const card = d.card
+    const idx = this.slotIndexAt(x, y)
+    if (idx < 0) {
+      card.x = d.originX
+      card.y = d.originY
+      card.scale = 1
+      return
+    }
+    if (card.locked || (card.slotIndex == null && board.isCovered(card, this.cards))) {
+      card.x = d.originX
+      card.y = d.originY
+      card.scale = 1
+      return
+    }
+    const parked = this.slots[idx]
+    if (parked && !parked.removed && board.canMatch(card, parked)) {
+      this.doMatch(card, parked)
+      return
+    }
+    const staged = board.findStagingMatch(card, this.slots)
+    if (staged) {
+      this.doMatch(card, staged)
+      return
+    }
+    if (parked && !parked.removed) {
+      card.x = d.originX
+      card.y = d.originY
+      card.scale = 1
+      this.showToast('这个暂存格已占用')
+      return
+    }
+    const empty = parked ? -1 : idx
+    const target = empty >= 0 ? empty : board.emptySlotIndex(this.slots)
+    if (target < 0) {
+      card.x = d.originX
+      card.y = d.originY
+      card.scale = 1
+      this.showToast('暂存区已满')
+      return
+    }
+    this.selected = card
+    this.applyMove(target)
+  }
+
+  onTouchStart(x, y) {
+    this.pressed = null
+    this.drag = null
+    this.hoverSlot = -1
+    if (this.overlay || this.busy) return
+    const L = this.layout
+    if (hitButton(L.backBtn, x, y)) {
+      this.pressed = 'back'
+      return
+    }
+    if (hitButton(L.hintBtn, x, y)) {
+      this.pressed = 'hint'
+      return
+    }
+    if (hitButton(L.shuffleBtn, x, y)) {
+      this.pressed = 'shuffle'
+      return
+    }
+  }
+
+  onTouchMove(x, y) {
+    if (this.overlay || this.busy || !this.drag) return
+    const d = this.drag
+    const dx = x - d.startX
+    const dy = y - d.startY
+    if (!d.active && dx * dx + dy * dy > 100) {
+      d.active = true
+      this.selected = d.card
+      d.card.scale = 1.08
+      audio.tap()
+    }
+    if (!d.active) return
+    d.card.x = x - d.grabX
+    d.card.y = y - d.grabY
+    this.hoverSlot = this.slotIndexAt(x, y)
+  }
+
+  onTouchCancel() {
+    if (this.drag && this.drag.active) this.restoreDrag()
+    this.drag = null
+    this.hoverSlot = -1
+    this.pressed = null
   }
 
   onTouchEnd(x, y) {
+    const dragging = this.drag && this.drag.active
+    if (dragging) {
+      this.pressed = null
+      this.finishDrag(x, y)
+      return
+    }
+    this.drag = null
+    this.hoverSlot = -1
     this.pressed = null
     if (this.overlay) {
       this.handleOverlay(x, y)
@@ -463,45 +606,19 @@ class PlayScene {
       this.doMatch(card, staged)
       return
     }
-    if (!this.selected) {
-      this.selected = card
-      card.scale = 1.06
-      audio.tap()
+    if (card.slotIndex != null) return
+    const idx = board.emptySlotIndex(this.slots)
+    if (idx < 0) {
+      this.showToast('鸟巢已满')
       return
     }
-    if (this.selected.id === card.id) {
-      if (card.slotIndex != null) {
-        this.selected.scale = 1
-        this.selected = null
-        return
-      }
-      const idx = board.emptySlotIndex(this.slots)
-      if (idx < 0) {
-        this.showToast('暂存区已满')
-        return
-      }
-      this.tryMoveToSlot(idx)
-      return
-    }
-    if (board.canMatch(this.selected, card) && board.isFree(card, this.cards) && board.isFree(this.selected, this.cards)) {
-      this.doMatch(this.selected, card)
-      return
-    }
-    this.selected.scale = 1
     this.selected = card
-    card.scale = 1.06
-    audio.tap()
+    this.applyMove(idx)
   }
 
   tryMoveToSlot(index) {
-    if (!this.selected) {
-      this.showToast('先点选卡牌，再点空格放入暂存')
-      return
-    }
-    if (this.selected.slotIndex != null) {
-      this.showToast('暂存区的卡牌不能再搬移')
-      return
-    }
+    if (!this.selected) return
+    if (this.selected.slotIndex != null) return
     if (this.slots[index]) {
       this.showToast('这个暂存格已占用')
       return
@@ -678,7 +795,7 @@ class PlayScene {
     audio.fail()
     this.overlay = {
       kind: 'fail',
-      title: '暂存区已满',
+      title: '鸟巢已满',
       desc: '底部 7 格已经满了，且没有可消的对子\n可以看广告复活，或重开本局',
       buttons: this.makeOverlayButtons('fail')
     }

@@ -5,3 +5,7 @@ node_modules/
 .idea/
 .vscode/
 .cursor/
+id_rsa.conf
+*.js.map
+.fortify*
+code.fortify.backup/
