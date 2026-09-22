@@ -454,7 +454,7 @@ class PlayScene {
       card.scale = 1
       return
     }
-    if (card.locked || (card.slotIndex == null && board.isCovered(card, this.cards))) {
+    if (card.locked) {
       card.x = d.originX
       card.y = d.originY
       card.scale = 1
@@ -632,11 +632,6 @@ class PlayScene {
       audio.lock()
       card.shake = 0.25
       this.showToast('先消除旁边的卡牌来开锁')
-      return
-    }
-    if (card.slotIndex == null && board.isCovered(card, this.cards)) {
-      card.shake = 0.25
-      this.showToast('被上层压住，无法点击')
       return
     }
     const staged = board.findStagingMatch(card, this.slots)

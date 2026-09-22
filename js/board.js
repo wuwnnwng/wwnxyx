@@ -15,29 +15,52 @@ function activeCards(cards) {
   return list
 }
 
-function isCovered(card, cards) {
-  if (card.slotIndex != null) return false
-  const ix = card.w * 0.22
-  const iy = card.h * 0.22
-  const inner = {
-    x: card.x + ix,
-    y: card.y + iy,
-    w: Math.max(10, card.w - ix * 2),
-    h: Math.max(10, card.h - iy * 2)
-  }
+function containsPoint(card, x, y) {
+  return x >= card.x && y >= card.y && x <= card.x + card.w && y <= card.y + card.h
+}
+
+function higherCardAt(card, cards, x, y) {
   for (let i = 0; i < cards.length; i++) {
     const o = cards[i]
     if (o.removed || o.id === card.id) continue
     if (o.slotIndex != null) continue
     if (o.layer <= card.layer) continue
-    if (rectsOverlapArea(inner, o) > 8) return true
+    if (containsPoint(o, x, y)) return o
   }
-  return false
+  return null
+}
+
+function isCovered(card, cards) {
+  if (card.slotIndex != null) return false
+  const pts = [
+    [0.5, 0.5],
+    [0.28, 0.28], [0.72, 0.28],
+    [0.28, 0.72], [0.72, 0.72]
+  ]
+  let buried = 0
+  for (let i = 0; i < pts.length; i++) {
+    const x = card.x + card.w * pts[i][0]
+    const y = card.y + card.h * pts[i][1]
+    if (higherCardAt(card, cards, x, y)) buried++
+  }
+  return buried >= 4
 }
 
 function isFree(card, cards) {
   if (card.removed || card.locked) return false
-  return !isCovered(card, cards)
+  if (card.slotIndex != null) return true
+  const pts = [
+    [0.5, 0.5],
+    [0.18, 0.18], [0.5, 0.18], [0.82, 0.18],
+    [0.18, 0.5], [0.82, 0.5],
+    [0.18, 0.82], [0.5, 0.82], [0.82, 0.82]
+  ]
+  for (let i = 0; i < pts.length; i++) {
+    const x = card.x + card.w * pts[i][0]
+    const y = card.y + card.h * pts[i][1]
+    if (!higherCardAt(card, cards, x, y)) return true
+  }
+  return false
 }
 
 function isAdjacent(a, b) {
@@ -301,17 +324,15 @@ function findCardAt(cards, x, y) {
   const list = activeCards(cards).slice().sort(function (a, b) {
     const sa = a.slotIndex != null ? 1000 : 0
     const sb = b.slotIndex != null ? 1000 : 0
-    return (b.layer + sb) - (a.layer + sa)
+    const d = (b.layer + sb) - (a.layer + sa)
+    if (d) return d
+    return b.id - a.id
   })
-  let blocked = null
   for (let i = 0; i < list.length; i++) {
     const c = list[i]
-    if (x < c.x || y < c.y || x > c.x + c.w || y > c.y + c.h) continue
-    if (c.slotIndex != null) return c
-    if (!isCovered(c, cards)) return c
-    if (!blocked) blocked = c
+    if (containsPoint(c, x, y)) return c
   }
-  return blocked
+  return null
 }
 
 function clickableSamePairs(cards) {

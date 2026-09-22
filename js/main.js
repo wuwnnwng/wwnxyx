@@ -98,7 +98,10 @@ function loop() {
 function touchXY(e) {
   const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0])
   if (!t) return null
-  return { x: t.clientX, y: t.clientY }
+  const x = typeof t.x === 'number' ? t.x : t.clientX
+  const y = typeof t.y === 'number' ? t.y : t.clientY
+  if (typeof x !== 'number' || typeof y !== 'number') return null
+  return { x: x, y: y }
 }
 
 wx.onTouchStart(function (e) {
