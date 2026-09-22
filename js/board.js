@@ -753,6 +753,31 @@ function isFailed(cards, slots) {
   return true
 }
 
+function pairScoreCap(cards) {
+  const map = {}
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i]
+    if (c.removed) continue
+    const k = typeKey(c)
+    map[k] = (map[k] || 0) + 1
+  }
+  let cap = 0
+  for (const k in map) {
+    const pairs = Math.floor(map[k] / 2)
+    cap += pairs * (k.indexOf('_adv') >= 0 ? CONFIG.score.advancedPair : CONFIG.score.pair)
+  }
+  return cap
+}
+
+function levelTargetFromCards(cards, cfg) {
+  const cap = pairScoreCap(cards)
+  if (cap <= 0) return CONFIG.score.pair
+  const n = (cfg && cfg.level) || 1
+  if (n <= 1) return Math.min(360, cap)
+  const ratio = Math.min(0.62 + (n - 2) * 0.03, 0.78)
+  return Math.max(CONFIG.score.pair, Math.min(Math.round(cap * ratio), cap))
+}
+
 module.exports = {
   typeKey: typeKey,
   activeCards: activeCards,
@@ -778,6 +803,8 @@ module.exports = {
   clearSlotOf: clearSlotOf,
   ensureSomePair: ensureSomePair,
   isFailed: isFailed,
+  pairScoreCap: pairScoreCap,
+  levelTargetFromCards: levelTargetFromCards,
   makeCard: makeCard,
   getLevelConfig: getLevelConfig,
   getEndlessConfig: getEndlessConfig

@@ -68,7 +68,7 @@ const LEVEL_NAMES = [
  */
 function getStackPlan(level) {
   const n = Math.max(1, level | 0)
-  if (n <= 1) return { cols: 3, rows: 2, layers: 2 }
+  if (n <= 1) return { cols: 4, rows: 3, layers: 2 }
   if (n === 2) return { cols: 6, rows: 4, layers: 3 }
   if (n === 3) return { cols: 6, rows: 4, layers: 4 }
   if (n === 4) return { cols: 6, rows: 5, layers: 4 }
@@ -109,21 +109,23 @@ function getLevelConfig(level) {
   let timeLimit
   let openCopies
   if (n <= 1) {
-    types = 2
+    types = 3
     locks = 0
     advancedPairs = 0
-    clearRatio = 0.38
+    clearRatio = 0.33
     timeLimit = 240
     openCopies = 2
   } else {
     types = Math.min(5 + n, ITEMS.length)
     locks = Math.min(2 + Math.floor(n * 0.9), 12)
     advancedPairs = n < 3 ? 0 : Math.min(1 + Math.floor((n - 3) / 5), 2)
-    clearRatio = Math.min(0.88 + (n - 2) * 0.012, 0.96)
+    clearRatio = Math.min(0.62 + (n - 2) * 0.03, 0.78)
     timeLimit = n === 2 ? 150 : n === 3 ? 135 : n <= 5 ? 120 : n <= 8 ? 100 : n <= 11 ? 90 : 75
     openCopies = 1
   }
-  const target = Math.round(CONFIG.score.pair * pairs * clearRatio)
+  const target = n <= 1
+    ? 360
+    : Math.round(CONFIG.score.pair * pairs * clearRatio)
   return {
     level: n,
     name: LEVEL_NAMES[(n - 1) % LEVEL_NAMES.length],

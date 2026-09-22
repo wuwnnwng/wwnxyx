@@ -43,7 +43,8 @@ class PlayScene {
     this.tools = {
       undo: { unlocked: false, used: false },
       remove: { unlocked: false, used: false },
-      shuffle: { unlocked: false, used: false }
+      shuffle: { unlocked: false, used: false },
+      revive: { unlocked: false, used: false }
     }
     this.pendingShare = null
     this.shareAt = 0
@@ -67,8 +68,13 @@ class PlayScene {
     } else if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
       this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
     }
-    let guard = 0
-    while (guard < 8 && this.maybeSynth(true)) guard++
+    if (!(this.mode === 'level' && this.cfg.level === 1)) {
+      let guard = 0
+      while (guard < 8 && this.maybeSynth(true)) guard++
+    }
+    if (this.mode === 'level') {
+      this.cfg.target = board.levelTargetFromCards(this.cards, this.cfg)
+    }
   }
 
   buildLayout(env) {
@@ -320,8 +326,8 @@ class PlayScene {
     drawBirdToolButton(ctx, L.shuffleBtn, this.pressed === 'shuffle', this.time)
 
     if (this.guide && !this.overlay) this.drawGuide(ctx, env)
-    if (this.toast) this.drawToast(ctx, env)
     if (this.overlay) this.drawOverlay(ctx, env)
+    if (this.toast) this.drawToast(ctx, env)
   }
 
   drawHeader(ctx, env, L) {
@@ -468,9 +474,20 @@ class PlayScene {
       ]
     }
     if (kind === 'fail') {
+      const st = this.tools.revive
+      let reviveLabel = '分享复活'
+      let reviveBg = '#E07A5F'
+      let reviveColor = '#fff'
+      if (st.used) {
+        reviveLabel = '已用完'
+        reviveBg = '#EDE6DC'
+        reviveColor = '#8A8178'
+      } else if (st.unlocked) {
+        reviveLabel = '复活 (1)'
+      }
       return [
         { id: 'retry', x: px + 16, y: by, w: bw, h: 42, label: '重开本局', bg: '#EDE6DC', color: '#3D405B', radius: 18 },
-        { id: 'revive', x: px + 32 + bw, y: by, w: bw, h: 42, label: '看广告复活', bg: '#E07A5F', radius: 18 }
+        { id: 'revive', x: px + 32 + bw, y: by, w: bw, h: 42, label: reviveLabel, bg: reviveBg, color: reviveColor, radius: 18 }
       ]
     }
     if (kind === 'timeout') {
@@ -897,6 +914,10 @@ class PlayScene {
         if (this.maybeSynth(false)) return
       }
     }
+    if (this.mode === 'level' && board.activeCards(this.cards).length === 0) {
+      this.onWin()
+      return
+    }
     if (board.isFailed(this.cards, this.slots)) this.onFail()
   }
 
@@ -921,7 +942,7 @@ class PlayScene {
     this.overlay = {
       kind: 'fail',
       title: '鸟巢已满',
-      desc: '底部 7 格已经满了，且没有可消的对子\n可以看广告复活，或重开本局',
+      desc: '底部 7 格已经满了，且没有可消的对子\n分享可复活一次，把鸟巢里的牌移回场上',
       buttons: this.makeOverlayButtons('fail')
     }
   }
@@ -932,30 +953,27 @@ class PlayScene {
   }
 
   tryRevive() {
-    const self = this
-    ad.showRewarded('revive').then(function (ok) {
-      if (!ok) {
-        self.showToast('未看完广告，复活失败')
-        return
-      }
-      self.overlay = null
-      if (board.emptySlotIndex(self.slots) < 0) {
-        const last = self.slots[self.slots.length - 1]
-        if (last) {
-          board.clearSlotOf(last, self.slots)
-          last.w = last.boardW || last.w
-          last.h = last.boardH || last.h
-          last.layer = 99
-          last.x = self.layout.board.x + 16
-          last.y = self.layout.board.y + 16
-        }
-      }
-      board.compactSlots(self.slots, self.layout.slots)
-      board.shuffleBoard(self.cards, self.layout.board, self.cfg)
-      board.ensureSomePair(self.cards)
-      self.showToast('复活成功，已重新堆叠')
-      self.afterBoardChange()
-    })
+    const st = this.tools.revive
+    if (!st || st.used) {
+      this.showToast('本关复活已用完')
+      return
+    }
+    if (!st.unlocked) {
+      this.askShare('revive')
+      return
+    }
+    this.applyShareRevive()
+  }
+
+  applyShareRevive() {
+    this.overlay = null
+    if (!this.dumpNestToBoard()) {
+      this.showToast('鸟巢是空的')
+      return
+    }
+    this.consumeTool('revive')
+    this.showToast('复活成功，鸟巢已移出')
+    this.afterBoardChange()
   }
 
   formatClock(sec) {
@@ -1003,7 +1021,7 @@ class PlayScene {
   askShare(key) {
     this.pendingShare = key
     this.shareAt = Date.now()
-    const names = { undo: '撤回', remove: '移除', shuffle: '洗牌' }
+    const names = { undo: '撤回', remove: '移除', shuffle: '洗牌', revive: '复活' }
     try {
       wx.shareAppMessage({
         title: '好鸟哥｜帮我过关，解锁一次' + (names[key] || '道具'),
@@ -1021,6 +1039,9 @@ class PlayScene {
     if (this.tools[key] && !this.tools[key].used) {
       this.tools[key].unlocked = true
       this.showToast('已解锁，本关可使用 1 次')
+      if (key === 'revive' && this.overlay && this.overlay.kind === 'fail') {
+        this.overlay.buttons = this.makeOverlayButtons('fail')
+      }
     }
   }
 
@@ -1101,17 +1122,13 @@ class PlayScene {
     this.showToast('没有可撤回的卡牌')
   }
 
-  useRemove() {
-    if (this.busy) return
+  dumpNestToBoard() {
     const parked = []
     for (let i = 0; i < this.slots.length; i++) {
       const c = this.slots[i]
       if (c && !c.removed) parked.push(c)
     }
-    if (!parked.length) {
-      this.showToast('鸟巢是空的')
-      return
-    }
+    if (!parked.length) return false
     let top = 0
     for (let i = 0; i < this.cards.length; i++) {
       const c = this.cards[i]
@@ -1135,6 +1152,15 @@ class PlayScene {
     }
     this.history = []
     board.compactSlots(this.slots, this.layout.slots)
+    return true
+  }
+
+  useRemove() {
+    if (this.busy) return
+    if (!this.dumpNestToBoard()) {
+      this.showToast('鸟巢是空的')
+      return
+    }
     this.consumeTool('remove')
     this.showToast('已移出鸟巢')
   }
