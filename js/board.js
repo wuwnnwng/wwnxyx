@@ -243,35 +243,44 @@ function assignLocks(cards, lockCount) {
   }
 }
 
-function balanceOpening(cards) {
-  const maxFree = 2
+function balanceOpening(cards, maxFree) {
+  const limit = maxFree == null ? 1 : maxFree
   let guard = 0
-  while (guard++ < 12) {
+  while (guard++ < 48) {
     const free = []
     const covered = []
     for (let i = 0; i < cards.length; i++) {
       const c = cards[i]
       if (c.removed || c.slotIndex != null) continue
-      if (c.advanced) continue
       if (isFree(c, cards)) free.push(c)
       else covered.push(c)
     }
     const groups = {}
     for (let i = 0; i < free.length; i++) {
-      const t = free[i].type
+      const t = typeKey(free[i])
       if (!groups[t]) groups[t] = []
       groups[t].push(free[i])
     }
     let overflow = null
     for (const t in groups) {
-      if (groups[t].length > maxFree) {
+      if (groups[t].length > limit) {
         overflow = groups[t][groups[t].length - 1]
         break
       }
     }
     if (!overflow || !covered.length) break
-    const other = covered.filter(function (c) { return c.type !== overflow.type })
-    const swap = other.length ? other[0] : covered[0]
+    const freeCount = {}
+    for (let i = 0; i < free.length; i++) {
+      const k = typeKey(free[i])
+      freeCount[k] = (freeCount[k] || 0) + 1
+    }
+    const other = covered.filter(function (c) {
+      const k = typeKey(c)
+      if (k === typeKey(overflow)) return false
+      return (freeCount[k] || 0) < limit
+    })
+    if (!other.length) break
+    const swap = other[0]
     const tx = overflow.x
     const ty = overflow.y
     const tl = overflow.layer
@@ -292,7 +301,7 @@ function createBoard(cfg, box, cardW, cardH) {
   const cards = buildDeck(slotCount, cfg.types, cfg.advancedPairs || 0)
   layoutStack(cards, box, cfg, 92, 112)
   assignLocks(cards, cfg.locks)
-  balanceOpening(cards)
+  balanceOpening(cards, cfg.openCopies)
   ensureOpeningMatch(cards)
   return cards
 }
@@ -437,14 +446,71 @@ function explodeAround(cards, ax, ay) {
   return cleared
 }
 
+function swapPose(a, b) {
+  const tx = a.x
+  const ty = a.y
+  const tl = a.layer
+  const tw = a.w
+  const th = a.h
+  a.x = b.x
+  a.y = b.y
+  a.layer = b.layer
+  a.w = b.w
+  a.h = b.h
+  a.boardW = a.w
+  a.boardH = a.h
+  b.x = tx
+  b.y = ty
+  b.layer = tl
+  b.w = tw
+  b.h = th
+  b.boardW = b.w
+  b.boardH = b.h
+}
+
 function ensureOpeningMatch(cards) {
   if (clickableSamePairs(cards).length) return
   const boardCards = []
   for (let i = 0; i < cards.length; i++) {
-    if (cards[i].removed || cards[i].slotIndex != null) continue
-    boardCards.push(cards[i])
+    const c = cards[i]
+    if (c.removed || c.slotIndex != null) continue
+    boardCards.push(c)
   }
   if (boardCards.length < 2) return
+  const free = boardCards.filter(function (c) { return isFree(c, cards) })
+  for (let i = 0; i < free.length; i++) {
+    const a = free[i]
+    const key = typeKey(a)
+    let partner = null
+    for (let j = 0; j < boardCards.length; j++) {
+      const c = boardCards[j]
+      if (c.id === a.id || typeKey(c) !== key) continue
+      if (isFree(c, cards)) continue
+      partner = c
+      break
+    }
+    if (!partner) continue
+    let other = null
+    for (let j = 0; j < free.length; j++) {
+      if (free[j].id !== a.id && typeKey(free[j]) !== key) {
+        other = free[j]
+        break
+      }
+    }
+    partner.locked = false
+    partner.lockHp = 0
+    if (other) swapPose(partner, other)
+    else {
+      partner.x = a.x
+      partner.y = a.y
+      partner.layer = a.layer
+      partner.w = a.w
+      partner.h = a.h
+      partner.boardW = a.w
+      partner.boardH = a.h
+    }
+    return
+  }
   const uncovered = boardCards.filter(function (c) {
     return !c.locked && !isCovered(c, cards)
   })
@@ -453,6 +519,7 @@ function ensureOpeningMatch(cards) {
   })
   const a = pool[0]
   const b = pool[1]
+  if (!a || !b) return
   a.locked = false
   b.locked = false
   b.advanced = a.advanced
@@ -469,55 +536,101 @@ function shuffleBoard(cards, box, cfg) {
   if (!pile.length) return
   const spec = cfg || { cols: 5, rows: 4, layers: 2 }
   layoutStack(pile, box, spec, 92, 112)
+  balanceOpening(cards, spec.openCopies)
   ensureOpeningMatch(cards)
 }
 
 function spawnEndless(cards, box, cardW, cardH, difficulty) {
-  const types = Math.min(6 + Math.floor(difficulty / 4), ITEMS.length)
+  const typeMax = Math.min(8 + Math.floor(difficulty / 2), ITEMS.length)
+  const pairN = Math.min(5, 3 + Math.floor(difficulty / 2))
   let topLayer = 0
   let sample = null
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i]
-    if (c.removed) continue
-    if (!sample && c.slotIndex == null) sample = c
-    if (c.slotIndex == null && c.layer > topLayer) topLayer = c.layer
+    if (c.removed || c.slotIndex != null) continue
+    if (!sample) sample = c
+    if (c.layer > topLayer) topLayer = c.layer
+  }
+  const lower = []
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i]
+    if (c.removed || c.slotIndex != null) continue
+    if (c.layer < topLayer) lower.push(c)
   }
   const w = (sample && sample.w) || cardW
   const h = (sample && sample.h) || cardH
   const layer = topLayer + 1
-  const n = 2
-  const spawned = []
-  const baseType = randInt(0, types - 1)
-  const cols = n
+  const gridCols = Math.min(4, pairN)
+  const gridRows = Math.ceil(pairN / gridCols)
   const stepX = w * 0.54
-  const gridW = (cols - 1) * stepX + w
-  const ox = box.x + (box.w - gridW) / 2 + 6
-  const oy = box.y + Math.max(8, (box.h - h) / 2 - 20)
-  for (let i = 0; i < n; i++) {
-    const type = i === 0 || Math.random() < 0.7 ? baseType : randInt(0, types - 1)
-    const c = makeCard(type, layer)
-    c.w = w
-    c.h = h
-    c.boardW = w
-    c.boardH = h
-    c.x = ox + i * stepX
-    c.y = oy + (i % 2) * 6
-    if (difficulty > 5 && Math.random() < 0.12) {
-      c.locked = true
-      c.lockHp = 2
+  const stepY = h * 0.46
+  const gridW = (gridCols - 1) * stepX + w
+  const gridH = (gridRows - 1) * stepY + h
+  const ox = box.x + (box.w - gridW) / 2
+  const oy = box.y + Math.max(8, (box.h - gridH) / 2 - 12)
+  const shift = randInt(0, Math.max(0, typeMax - 1))
+  const spawned = []
+  for (let i = 0; i < pairN; i++) {
+    const type = (shift + i) % typeMax
+    const top = makeCard(type, layer)
+    top.w = w
+    top.h = h
+    top.boardW = w
+    top.boardH = h
+    const col = i % gridCols
+    const row = Math.floor(i / gridCols)
+    top.x = ox + col * stepX
+    top.y = oy + row * stepY
+    const mate = makeCard(type, layer)
+    mate.w = w
+    mate.h = h
+    mate.boardW = w
+    mate.boardH = h
+    if (lower.length) {
+      const anchor = lower[(i * 3) % lower.length]
+      mate.x = anchor.x
+      mate.y = anchor.y
+      mate.layer = anchor.layer
+      mate.w = anchor.w
+      mate.h = anchor.h
+      mate.boardW = anchor.w
+      mate.boardH = anchor.h
+      if (difficulty >= 3 && Math.random() < 0.28) {
+        mate.locked = true
+        mate.lockHp = 2
+      }
+    } else {
+      mate.x = top.x + 8
+      mate.y = top.y + 8
+      mate.layer = layer
     }
-    cards.push(c)
-    spawned.push(c)
+    cards.push(top)
+    cards.push(mate)
+    spawned.push(top, mate)
   }
-  while (activeCards(cards).length > 48) {
-    let lowest = null
-    for (let i = 0; i < cards.length; i++) {
-      const c = cards[i]
-      if (c.removed || c.slotIndex != null) continue
-      if (!lowest || c.layer < lowest.layer) lowest = c
+  while (activeCards(cards).length > 96) {
+    const alive = activeCards(cards)
+    const counts = {}
+    for (let i = 0; i < alive.length; i++) {
+      const k = typeKey(alive[i])
+      counts[k] = (counts[k] || 0) + 1
     }
-    if (!lowest) break
-    lowest.removed = true
+    let victim = null
+    for (let i = 0; i < alive.length; i++) {
+      const c = alive[i]
+      if (c.slotIndex != null) continue
+      if (counts[typeKey(c)] < 3) continue
+      if (!victim || c.layer < victim.layer) victim = c
+    }
+    if (!victim) {
+      for (let i = 0; i < alive.length; i++) {
+        const c = alive[i]
+        if (c.slotIndex != null) continue
+        if (!victim || c.layer < victim.layer) victim = c
+      }
+    }
+    if (!victim) break
+    victim.removed = true
   }
   return spawned
 }

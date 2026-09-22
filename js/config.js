@@ -64,21 +64,20 @@ const LEVEL_NAMES = [
 ]
 
 /**
- * 市面堆叠消常见布局：底层满格多行多列，奇数层错半格压在缝上。
- * 第一关只铺两排；之后加列、加行、再加层。
+ * 底层满格，奇数层错半格压在缝上。
+ * 第 1 关仍是两层小盘；之后加列、加行、加层，第 12 关以后继续加码，不再停在同一张盘上。
  */
 function getStackPlan(level) {
   const n = Math.max(1, level | 0)
   if (n <= 1) return { cols: 4, rows: 2, layers: 2 }
-  if (n === 2) return { cols: 4, rows: 3, layers: 2 }
-  if (n === 3) return { cols: 5, rows: 3, layers: 2 }
-  if (n === 4) return { cols: 5, rows: 3, layers: 3 }
-  if (n === 5) return { cols: 5, rows: 4, layers: 2 }
-  if (n === 6) return { cols: 5, rows: 4, layers: 3 }
-  if (n === 7) return { cols: 6, rows: 4, layers: 2 }
-  if (n <= 9) return { cols: 6, rows: 4, layers: 3 }
-  if (n <= 12) return { cols: 6, rows: 5, layers: 2 }
-  return { cols: 6, rows: 5, layers: 3 }
+  if (n === 2) return { cols: 5, rows: 3, layers: 2 }
+  if (n === 3) return { cols: 5, rows: 4, layers: 3 }
+  if (n === 4) return { cols: 6, rows: 4, layers: 3 }
+  if (n <= 6) return { cols: 6, rows: 4, layers: 4 }
+  if (n <= 8) return { cols: 6, rows: 5, layers: 4 }
+  if (n <= 11) return { cols: 7, rows: 5, layers: 4 }
+  if (n <= 15) return { cols: 7, rows: 5, layers: 5 }
+  return { cols: 7, rows: 6, layers: 5 }
 }
 
 function layerCells(cols, rows, layer) {
@@ -103,12 +102,13 @@ function estimateSlots(plan) {
 function getLevelConfig(level) {
   const n = Math.max(1, level | 0)
   const plan = getStackPlan(n)
-  const types = Math.min(4 + Math.floor((n - 1) / 2), 8)
-  const locks = n <= 1 ? 0 : Math.min(1 + Math.floor((n - 2) / 2), 8)
-  const advancedPairs = n < 3 ? 0 : Math.min(1 + Math.floor((n - 3) / 4), 2)
+  const types = Math.min(3 + n, ITEMS.length)
+  const locks = n <= 1 ? 0 : Math.min(1 + Math.floor((n - 1) * 0.8), 10)
+  const advancedPairs = n < 5 ? 0 : Math.min(1 + Math.floor((n - 5) / 6), 2)
   const slots = estimateSlots(plan)
   const pairs = Math.max(3, Math.floor(slots / 2))
-  const target = Math.round(CONFIG.score.pair * pairs * (0.42 + Math.min(n, 12) * 0.025))
+  const clearRatio = n <= 1 ? 0.7 : Math.min(0.84 + (n - 2) * 0.008, 0.96)
+  const target = Math.round(CONFIG.score.pair * pairs * clearRatio)
   return {
     level: n,
     name: LEVEL_NAMES[(n - 1) % LEVEL_NAMES.length],
@@ -120,24 +120,26 @@ function getLevelConfig(level) {
     locks: locks,
     advancedPairs: advancedPairs,
     synthTypes: 0,
-    target: target
+    target: target,
+    openCopies: n <= 1 ? 2 : 1
   }
 }
 
 function getEndlessConfig() {
-  const plan = { cols: 5, rows: 4, layers: 3 }
+  const plan = { cols: 6, rows: 5, layers: 4 }
   return {
     level: 0,
     name: '无尽模式',
-    types: 6,
+    types: 8,
     cols: plan.cols,
     rows: plan.rows,
     layers: plan.layers,
-    pairCount: 6,
-    locks: 2,
+    pairCount: 8,
+    locks: 5,
     advancedPairs: 1,
     synthTypes: 0,
-    target: 0
+    target: 0,
+    openCopies: 1
   }
 }
 

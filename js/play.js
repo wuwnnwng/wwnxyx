@@ -830,7 +830,7 @@ class PlayScene {
     this.overlay = {
       kind: 'win',
       title: '本关完成',
-      desc: this.cfg.name + '  得分 ' + this.score + '\n剩余卡牌保留，已达到目标',
+      desc: this.cfg.name + '  得分 ' + this.score + '\n已达到本关目标分数',
       buttons: this.makeOverlayButtons('win')
     }
   }
