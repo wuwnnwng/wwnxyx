@@ -62,7 +62,9 @@ class PlayScene {
     this.overlay = null
     ad.hideBanner()
     this.timeLeft = this.mode === 'level' ? (this.cfg.timeLimit || 120) : 0
-    if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
+    if (this.mode === 'level' && this.cfg.level === 2) {
+      this.showToast('注意：从本关开始难度飙升！', 3.6)
+    } else if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
       this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
     }
     let guard = 0
@@ -906,7 +908,9 @@ class PlayScene {
     this.overlay = {
       kind: 'win',
       title: '本关完成',
-      desc: this.cfg.name + '  得分 ' + this.score + '\n已达到本关目标分数',
+      desc: this.cfg.level === 1
+        ? '教学关已过关！\n下一关开始难度将飙升'
+        : (this.cfg.name + '  得分 ' + this.score + '\n已达到本关目标分数'),
       buttons: this.makeOverlayButtons('win')
     }
   }

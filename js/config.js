@@ -64,19 +64,17 @@ const LEVEL_NAMES = [
 ]
 
 /**
- * 底层满格，奇数层错半格压在缝上。
- * 第 1 关仍是两层小盘；之后加列、加行、加层，第 12 关以后继续加码，不再停在同一张盘上。
+ * 第 1 关极简教学盘；第 2 关起盘面、种类、锁和时限一次性拉高。
  */
 function getStackPlan(level) {
   const n = Math.max(1, level | 0)
-  if (n <= 1) return { cols: 4, rows: 2, layers: 2 }
-  if (n === 2) return { cols: 5, rows: 3, layers: 2 }
-  if (n === 3) return { cols: 5, rows: 4, layers: 3 }
-  if (n === 4) return { cols: 6, rows: 4, layers: 3 }
-  if (n <= 6) return { cols: 6, rows: 4, layers: 4 }
-  if (n <= 8) return { cols: 6, rows: 5, layers: 4 }
-  if (n <= 11) return { cols: 7, rows: 5, layers: 4 }
-  if (n <= 15) return { cols: 7, rows: 5, layers: 5 }
+  if (n <= 1) return { cols: 3, rows: 2, layers: 2 }
+  if (n === 2) return { cols: 6, rows: 4, layers: 3 }
+  if (n === 3) return { cols: 6, rows: 4, layers: 4 }
+  if (n === 4) return { cols: 6, rows: 5, layers: 4 }
+  if (n <= 6) return { cols: 7, rows: 5, layers: 4 }
+  if (n <= 8) return { cols: 7, rows: 5, layers: 5 }
+  if (n <= 11) return { cols: 7, rows: 6, layers: 5 }
   return { cols: 7, rows: 6, layers: 5 }
 }
 
@@ -102,14 +100,30 @@ function estimateSlots(plan) {
 function getLevelConfig(level) {
   const n = Math.max(1, level | 0)
   const plan = getStackPlan(n)
-  const types = Math.min(3 + n, ITEMS.length)
-  const locks = n <= 1 ? 0 : Math.min(1 + Math.floor((n - 1) * 0.8), 10)
-  const advancedPairs = n < 5 ? 0 : Math.min(1 + Math.floor((n - 5) / 6), 2)
   const slots = estimateSlots(plan)
   const pairs = Math.max(3, Math.floor(slots / 2))
-  const clearRatio = n <= 1 ? 0.7 : Math.min(0.84 + (n - 2) * 0.008, 0.96)
+  let types
+  let locks
+  let advancedPairs
+  let clearRatio
+  let timeLimit
+  let openCopies
+  if (n <= 1) {
+    types = 2
+    locks = 0
+    advancedPairs = 0
+    clearRatio = 0.38
+    timeLimit = 240
+    openCopies = 2
+  } else {
+    types = Math.min(5 + n, ITEMS.length)
+    locks = Math.min(2 + Math.floor(n * 0.9), 12)
+    advancedPairs = n < 3 ? 0 : Math.min(1 + Math.floor((n - 3) / 5), 2)
+    clearRatio = Math.min(0.88 + (n - 2) * 0.012, 0.96)
+    timeLimit = n === 2 ? 150 : n === 3 ? 135 : n <= 5 ? 120 : n <= 8 ? 100 : n <= 11 ? 90 : 75
+    openCopies = 1
+  }
   const target = Math.round(CONFIG.score.pair * pairs * clearRatio)
-  const timeLimit = n <= 1 ? 180 : n === 2 ? 150 : n === 3 ? 132 : n <= 5 ? 115 : n <= 8 ? 96 : n <= 11 ? 80 : n <= 15 ? 66 : 52
   return {
     level: n,
     name: LEVEL_NAMES[(n - 1) % LEVEL_NAMES.length],
@@ -122,7 +136,7 @@ function getLevelConfig(level) {
     advancedPairs: advancedPairs,
     synthTypes: 0,
     target: target,
-    openCopies: n <= 1 ? 2 : 1,
+    openCopies: openCopies,
     timeLimit: timeLimit
   }
 }
