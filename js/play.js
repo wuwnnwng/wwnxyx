@@ -3,7 +3,7 @@ const { roundRect, drawBackground, drawCard, drawSlot, drawDockTray, drawButton,
 const board = require('./board')
 const ad = require('./ad')
 const audio = require('./audio')
-const { pointInRect, easeOut, lerp, formatScore } = require('./utils')
+const { pointInRect, easeOut, easeInOut, lerp, formatScore } = require('./utils')
 const { loadJSON, saveJSON } = require('./env')
 
 class PlayScene {
@@ -40,6 +40,15 @@ class PlayScene {
     this.drag = null
     this.hoverSlot = -1
     this.history = []
+    this.tools = {
+      undo: { unlocked: false, used: false },
+      remove: { unlocked: false, used: false },
+      shuffle: { unlocked: false, used: false }
+    }
+    this.pendingShare = null
+    this.shareAt = 0
+    this.timeLeft = 0
+    this.shuffleFx = null
   }
 
   start(mode, level) {
@@ -52,6 +61,7 @@ class PlayScene {
     this.guide = mode === 'level' && this.cfg.level === 1
     this.overlay = null
     ad.hideBanner()
+    this.timeLeft = this.mode === 'level' ? (this.cfg.timeLimit || 120) : 0
     if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
       this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
     }
@@ -88,8 +98,8 @@ class PlayScene {
         h: slotH
       })
     }
-    const btnGap = 8
-    const btnW = Math.floor((env.width - 16 - btnGap * 3) / 4)
+    const btnGap = 10
+    const btnW = Math.floor((env.width - 16 - btnGap * 2) / 3)
     const bx = 8
     function toolBtn(i, label, pal, face, flap) {
       return {
@@ -112,7 +122,6 @@ class PlayScene {
       undoBtn: toolBtn(0, '撤回', BIRD_PALETTE[2], 1, 7.2),
       removeBtn: toolBtn(1, '移除', BIRD_PALETTE[0], -1, 8.1),
       shuffleBtn: toolBtn(2, '洗牌', BIRD_PALETTE[3], 1, 6.4),
-      hintBtn: toolBtn(3, '提示', BIRD_PALETTE[1], -1, 7.6),
       backBtn: { x: 12, y: headerY, w: 48, h: 28, label: '返回', bg: 'rgba(61,64,91,0.12)', color: '#3D405B', radius: 14, font: '12px sans-serif' }
     }
   }
@@ -139,6 +148,13 @@ class PlayScene {
 
   update(dt) {
     this.time += dt
+    if (this.mode === 'level' && !this.overlay && this.timeLeft > 0) {
+      this.timeLeft -= dt
+      if (this.timeLeft <= 0) {
+        this.timeLeft = 0
+        this.onTimeout()
+      }
+    }
     if (this.comboT > 0) {
       this.comboT -= dt
       if (this.comboT <= 0) this.combo = 0
@@ -162,6 +178,7 @@ class PlayScene {
       if (c.glow > 0) c.glow = Math.max(0, c.glow - dt * 2)
     }
     this.particles.update(dt)
+    this.updateShuffle(dt)
 
     if (this.anims.length) {
       for (let i = this.anims.length - 1; i >= 0; i--) {
@@ -176,7 +193,72 @@ class PlayScene {
           if (a.onDone) a.onDone()
         }
       }
-      if (!this.anims.length) this.busy = false
+      if (!this.anims.length && !this.shuffleFx) this.busy = false
+    }
+  }
+
+  updateShuffle(dt) {
+    const fx = this.shuffleFx
+    if (!fx) return
+    fx.t += dt
+    const k = Math.min(1, fx.t / fx.dur)
+    const env = this.app.env
+    const cx = env.width / 2
+    const cy = fx.cy
+    for (let i = 0; i < fx.cards.length; i++) {
+      const c = fx.cards[i]
+      const from = fx.from[i]
+      const to = fx.to[i]
+      let px
+      let py
+      let spin
+      let sc
+      if (k < 0.32) {
+        const u = easeOut(k / 0.32)
+        px = lerp(from.x, cx - c.w / 2, u)
+        py = lerp(from.y, cy - c.h / 2, u)
+        spin = u * Math.PI * 2 * (i % 2 ? 1 : -1)
+        sc = lerp(1, 0.82, u)
+      } else if (k < 0.62) {
+        const u = (k - 0.32) / 0.3
+        const ang = u * Math.PI * 2 + i * (Math.PI * 2 / fx.cards.length)
+        const rad = 36 + (i % 5) * 10
+        px = cx + Math.cos(ang) * rad - c.w / 2
+        py = cy + Math.sin(ang) * rad * 0.55 - c.h / 2
+        spin = ang * 1.4
+        sc = 0.78
+      } else {
+        const u = easeInOut((k - 0.62) / 0.38)
+        const ang = Math.PI * 2 + i * (Math.PI * 2 / fx.cards.length)
+        const rad = 36 + (i % 5) * 10
+        const mx = cx + Math.cos(ang) * rad - c.w / 2
+        const my = cy + Math.sin(ang) * rad * 0.55 - c.h / 2
+        px = lerp(mx, to.x, u)
+        py = lerp(my, to.y, u)
+        spin = (1 - u) * ang
+        sc = lerp(0.78, 1, u)
+      }
+      c.x = px
+      c.y = py
+      c.spin = spin
+      c.scale = sc
+    }
+    if (k >= 1) {
+      for (let i = 0; i < fx.cards.length; i++) {
+        const c = fx.cards[i]
+        c.x = fx.to[i].x
+        c.y = fx.to[i].y
+        c.w = fx.to[i].w
+        c.h = fx.to[i].h
+        c.layer = fx.to[i].layer
+        c.spin = 0
+        c.scale = 1
+      }
+      this.shuffleFx = null
+      this.busy = false
+      this.particles.burst(cx, cy, '#E9C46A', 22)
+      this.particles.burst(cx, cy, '#E07A5F', 14)
+      this.afterBoardChange()
     }
   }
 
@@ -229,11 +311,11 @@ class PlayScene {
 
     this.particles.draw(ctx)
     this.drawFloaters(ctx)
+    this.syncToolButtons(L)
     drawToolBranch(ctx, 10, L.undoBtn.y + 22, env.width - 20)
     drawBirdToolButton(ctx, L.undoBtn, this.pressed === 'undo', this.time)
     drawBirdToolButton(ctx, L.removeBtn, this.pressed === 'remove', this.time)
     drawBirdToolButton(ctx, L.shuffleBtn, this.pressed === 'shuffle', this.time)
-    drawBirdToolButton(ctx, L.hintBtn, this.pressed === 'hint', this.time)
 
     if (this.guide && !this.overlay) this.drawGuide(ctx, env)
     if (this.toast) this.drawToast(ctx, env)
@@ -266,9 +348,10 @@ class PlayScene {
       ctx.fillText('最高 ' + formatScore(best), scoreX, L.headerY + 26)
     } else {
       ctx.fillText(formatScore(this.score) + ' / ' + this.cfg.target, scoreX, L.headerY + 10)
-      ctx.font = '10px sans-serif'
-      ctx.fillStyle = '#8A8178'
-      ctx.fillText('目标分数', scoreX, L.headerY + 26)
+      ctx.font = 'bold 12px sans-serif'
+      const low = this.timeLeft <= 15
+      ctx.fillStyle = low ? '#C45C42' : '#8A8178'
+      ctx.fillText(this.formatClock(this.timeLeft), scoreX, L.headerY + 26)
     }
 
     if (this.combo >= 2) {
@@ -335,7 +418,7 @@ class PlayScene {
     ctx.fillText('点卡牌会飞进鸟巢，相同自动消除', env.width / 2, env.safeTop + 108)
     ctx.font = '11px sans-serif'
     ctx.fillStyle = '#F2CC8F'
-    ctx.fillText('鸟巢 7 格，两张一样会立刻消除', env.width / 2, env.safeTop + 126)
+    ctx.fillText('撤回/移除/洗牌需分享解锁，每关限用 1 次', env.width / 2, env.safeTop + 126)
   }
 
   drawOverlay(ctx, env) {
@@ -343,7 +426,7 @@ class PlayScene {
     ctx.fillStyle = 'rgba(35, 31, 28, 0.55)'
     ctx.fillRect(0, 0, env.width, env.height)
     const pw = Math.min(320, env.width - 40)
-    const ph = o.kind === 'confirm' ? 210 : 280
+    const ph = o.kind === 'confirm' || o.kind === 'timeout' ? 210 : 280
     const px = (env.width - pw) / 2
     const py = (env.height - ph) / 2 - 20
     roundRect(ctx, px, py, pw, ph, 20)
@@ -371,7 +454,7 @@ class PlayScene {
   makeOverlayButtons(kind) {
     const env = this.app.env
     const pw = Math.min(320, env.width - 40)
-    const ph = kind === 'confirm' ? 210 : 280
+    const ph = kind === 'confirm' || kind === 'timeout' ? 210 : 280
     const px = (env.width - pw) / 2
     const py = (env.height - ph) / 2 - 20
     const bw = (pw - 48) / 2
@@ -386,6 +469,12 @@ class PlayScene {
       return [
         { id: 'retry', x: px + 16, y: by, w: bw, h: 42, label: '重开本局', bg: '#EDE6DC', color: '#3D405B', radius: 18 },
         { id: 'revive', x: px + 32 + bw, y: by, w: bw, h: 42, label: '看广告复活', bg: '#E07A5F', radius: 18 }
+      ]
+    }
+    if (kind === 'timeout') {
+      return [
+        { id: 'home', x: px + 16, y: by, w: bw, h: 42, label: '返回首页', bg: '#EDE6DC', color: '#3D405B', radius: 18 },
+        { id: 'retry', x: px + 32 + bw, y: by, w: bw, h: 42, label: '重新闯关', bg: '#E07A5F', radius: 18 }
       ]
     }
     return [
@@ -512,10 +601,6 @@ class PlayScene {
       this.pressed = 'shuffle'
       return
     }
-    if (hitButton(L.hintBtn, x, y)) {
-      this.pressed = 'hint'
-      return
-    }
   }
 
   onTouchMove(x, y) {
@@ -567,19 +652,15 @@ class PlayScene {
       return
     }
     if (hitButton(L.undoBtn, x, y)) {
-      this.useUndo()
+      this.tryTool('undo')
       return
     }
     if (hitButton(L.removeBtn, x, y)) {
-      this.useRemove()
+      this.tryTool('remove')
       return
     }
     if (hitButton(L.shuffleBtn, x, y)) {
-      this.useShuffle()
-      return
-    }
-    if (hitButton(L.hintBtn, x, y)) {
-      this.useHint()
+      this.tryTool('shuffle')
       return
     }
     for (let i = 0; i < L.slots.length; i++) {
@@ -873,22 +954,126 @@ class PlayScene {
     })
   }
 
-  useHint() {
-    const pairs = board.clickableSamePairs(this.cards)
-    if (!pairs.length) {
-      this.showToast('当前没有可消除的对子')
+  formatClock(sec) {
+    const n = Math.max(0, Math.ceil(sec))
+    const m = Math.floor(n / 60)
+    const r = n % 60
+    return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r
+  }
+
+  syncToolButtons(L) {
+    const map = [
+      [L.undoBtn, this.tools.undo],
+      [L.removeBtn, this.tools.remove],
+      [L.shuffleBtn, this.tools.shuffle]
+    ]
+    for (let i = 0; i < map.length; i++) {
+      const btn = map[i][0]
+      const st = map[i][1]
+      btn.locked = !st.unlocked
+      btn.used = st.used
+      btn.badge = st.unlocked && !st.used ? 1 : 0
+    }
+  }
+
+  tryTool(key) {
+    const st = this.tools[key]
+    if (!st) return
+    if (st.used) {
+      this.showToast('本关已用完')
       return
     }
-    this.hints = [pairs[0][0].id, pairs[0][1].id]
-    this.hintT = 2.8
-    this.showToast('已高亮一对可消除卡牌')
+    if (!st.unlocked) {
+      this.askShare(key)
+      return
+    }
+    if (key === 'undo') this.useUndo()
+    else if (key === 'remove') this.useRemove()
+    else if (key === 'shuffle') this.useShuffle()
+  }
+
+  consumeTool(key) {
+    if (this.tools[key]) this.tools[key].used = true
+  }
+
+  askShare(key) {
+    this.pendingShare = key
+    this.shareAt = Date.now()
+    const names = { undo: '撤回', remove: '移除', shuffle: '洗牌' }
+    try {
+      wx.shareAppMessage({
+        title: '好鸟哥｜帮我过关，解锁一次' + (names[key] || '道具'),
+        query: 'tool=' + key
+      })
+    } catch (e) {}
+    this.showToast('分享后返回即可解锁')
+  }
+
+  onShow() {
+    if (!this.pendingShare) return
+    if (Date.now() - this.shareAt < 250) return
+    const key = this.pendingShare
+    this.pendingShare = null
+    if (this.tools[key] && !this.tools[key].used) {
+      this.tools[key].unlocked = true
+      this.showToast('已解锁，本关可使用 1 次')
+    }
+  }
+
+  onTimeout() {
+    if (this.overlay) return
+    this.busy = false
+    this.shuffleFx = null
+    audio.fail()
+    this.overlay = {
+      kind: 'timeout',
+      title: '时间到',
+      desc: '本关超时，只能重新闯关',
+      buttons: this.makeOverlayButtons('timeout')
+    }
   }
 
   useShuffle() {
+    if (this.busy) return
+    const pile = []
+    for (let i = 0; i < this.cards.length; i++) {
+      const c = this.cards[i]
+      if (c.removed || c.slotIndex != null) continue
+      pile.push(c)
+    }
+    if (!pile.length) {
+      this.showToast('没有可洗的卡牌')
+      return
+    }
+    const from = []
+    for (let i = 0; i < pile.length; i++) {
+      const c = pile[i]
+      from.push({ x: c.x, y: c.y, w: c.w, h: c.h, layer: c.layer })
+    }
     board.shuffleBoard(this.cards, this.layout.board, this.cfg)
+    const to = []
+    for (let i = 0; i < pile.length; i++) {
+      const c = pile[i]
+      to.push({ x: c.x, y: c.y, w: c.w, h: c.h, layer: c.layer })
+      c.x = from[i].x
+      c.y = from[i].y
+      c.w = from[i].w
+      c.h = from[i].h
+      c.layer = from[i].layer
+    }
     this.selected = null
-    this.showToast('已重新堆叠')
-    this.afterBoardChange()
+    this.busy = true
+    this.consumeTool('shuffle')
+    const box = this.layout.board
+    this.shuffleFx = {
+      t: 0,
+      dur: 1.15,
+      cards: pile,
+      from: from,
+      to: to,
+      cy: box.y + box.h * 0.42
+    }
+    this.particles.burst(this.app.env.width / 2, this.shuffleFx.cy, '#F2CC8F', 18)
   }
 
   useUndo() {
@@ -905,6 +1090,7 @@ class PlayScene {
       c.layer = rec.layer
       c.scale = 1
       board.compactSlots(this.slots, this.layout.slots)
+      this.consumeTool('undo')
       this.showToast('已撤回')
       return
     }
@@ -945,6 +1131,7 @@ class PlayScene {
     }
     this.history = []
     board.compactSlots(this.slots, this.layout.slots)
+    this.consumeTool('remove')
     this.showToast('已移出鸟巢')
   }
 }

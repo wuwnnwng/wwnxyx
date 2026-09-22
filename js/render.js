@@ -377,6 +377,7 @@ function drawCard(ctx, card, opt) {
 
   ctx.save()
   ctx.translate(cx, cy)
+  if (card.spin) ctx.rotate(card.spin)
   ctx.scale(scale, scale)
   ctx.translate(-cx, -cy)
 
@@ -635,12 +636,14 @@ function drawToolBranch(ctx, x, y, w) {
 }
 
 function drawBirdToolButton(ctx, btn, pressed, t) {
-  const y = btn.y + (pressed ? 2 : 0)
+  const y = btn.y + (pressed && !btn.used && !btn.locked ? 2 : 0)
   const x = btn.x
   const w = btn.w
   const h = btn.h
-  const pal = btn.pal || BIRD_PALETTE[0]
+  const gray = { color: '#A8A29A', deep: '#6F6A64', wing: '#D9D3C8' }
+  const pal = btn.used || btn.locked ? gray : (btn.pal || BIRD_PALETTE[0])
   ctx.save()
+  ctx.globalAlpha = btn.used ? 0.48 : 1
   ctx.shadowColor = 'rgba(70,42,20,0.24)'
   ctx.shadowBlur = 10
   ctx.shadowOffsetY = 3
@@ -665,8 +668,8 @@ function drawBirdToolButton(ctx, btn, pressed, t) {
     y: y + 18,
     scale: 0.5,
     face: btn.face || 1,
-    flap: (t || 0) * (btn.flap || 7) + (pressed ? 1.6 : 0),
-    rot: pressed ? 0.12 : Math.sin((t || 0) * 2.2 + x) * 0.06,
+    flap: btn.used ? 0 : (t || 0) * (btn.flap || 7) + (pressed ? 1.6 : 0),
+    rot: pressed && !btn.used ? 0.12 : Math.sin((t || 0) * 2.2 + x) * (btn.used ? 0 : 0.06),
     color: pal.color,
     deep: pal.deep,
     wing: pal.wing,
@@ -677,7 +680,24 @@ function drawBirdToolButton(ctx, btn, pressed, t) {
   ctx.font = 'bold 12px sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(btn.label, x + w / 2, y + h - 11)
+  ctx.fillText(btn.used ? '已用完' : btn.label, x + w / 2, y + h - 11)
+
+  if (btn.locked && !btn.used) {
+    ctx.fillStyle = 'rgba(61,64,91,0.28)'
+    roundRect(ctx, x, y, w, h, 18)
+    ctx.fill()
+    drawLockIcon(ctx, x + w / 2, y + 16, 0.72)
+  }
+
+  if (btn.badge) {
+    ctx.fillStyle = '#E07A5F'
+    ctx.beginPath()
+    ctx.arc(x + w - 10, y + 10, 9, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#FFFBF5'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.fillText(String(btn.badge), x + w - 10, y + 11)
+  }
   ctx.restore()
 }
 

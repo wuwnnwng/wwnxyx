@@ -141,6 +141,8 @@ wx.onShow(function () {
   last = Date.now()
   audio.unlock()
   audio.resumeBgm()
+  const scene = currentScene()
+  if (scene.onShow) scene.onShow()
 })
 
 wx.onError(function (err) {

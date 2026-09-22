@@ -109,6 +109,7 @@ function getLevelConfig(level) {
   const pairs = Math.max(3, Math.floor(slots / 2))
   const clearRatio = n <= 1 ? 0.7 : Math.min(0.84 + (n - 2) * 0.008, 0.96)
   const target = Math.round(CONFIG.score.pair * pairs * clearRatio)
+  const timeLimit = n <= 1 ? 180 : n === 2 ? 150 : n === 3 ? 132 : n <= 5 ? 115 : n <= 8 ? 96 : n <= 11 ? 80 : n <= 15 ? 66 : 52
   return {
     level: n,
     name: LEVEL_NAMES[(n - 1) % LEVEL_NAMES.length],
@@ -121,7 +122,8 @@ function getLevelConfig(level) {
     advancedPairs: advancedPairs,
     synthTypes: 0,
     target: target,
-    openCopies: n <= 1 ? 2 : 1
+    openCopies: n <= 1 ? 2 : 1,
+    timeLimit: timeLimit
   }
 }
 

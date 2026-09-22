@@ -162,50 +162,52 @@ function airPad(dur, vol) {
   const data = new Float32Array(n)
   for (let i = 0; i < n; i++) {
     const t = i / SAMPLE_RATE
-    const env = 0.55 + 0.45 * Math.sin(t * 0.7)
+    const env = 0.62 + 0.38 * Math.sin(t * 1.15)
     data[i] = (
-      Math.sin(2 * Math.PI * 196 * t) * 0.35 +
-      Math.sin(2 * Math.PI * 247 * t) * 0.22 +
-      Math.sin(2 * Math.PI * 330 * t) * 0.12
+      Math.sin(2 * Math.PI * 261.6 * t) * 0.28 +
+      Math.sin(2 * Math.PI * 329.6 * t) * 0.22 +
+      Math.sin(2 * Math.PI * 392.0 * t) * 0.16
     ) * vol * env
   }
   return data
 }
 
-function buildBgmPcm() {
-  const dur = 10.5
-  const out = new Float32Array(Math.floor(SAMPLE_RATE * dur))
-  mixAt(out, airPad(dur, 0.07), 0)
-  mixAt(out, coo(392, 0.55, 0.16), 0.35)
-  mixAt(out, coo(349, 0.5, 0.12), 5.4)
-  const tweets = [
-    [0.6, 2100, 2800, 0.14],
-    [1.15, 1800, 2400, 0.11],
-    [1.85, 2400, 3200, 0.13],
-    [2.55, 1600, 2100, 0.1],
-    [3.2, 2200, 3100, 0.14],
-    [3.55, 1900, 2500, 0.09],
-    [4.4, 2500, 3400, 0.12],
-    [5.15, 1700, 2300, 0.11],
-    [6.05, 2100, 2900, 0.13],
-    [6.7, 2800, 3600, 0.1],
-    [7.45, 1500, 2000, 0.12],
-    [8.2, 2300, 3000, 0.13],
-    [8.85, 1900, 2600, 0.1],
-    [9.5, 2000, 2700, 0.12]
-  ]
-  for (let i = 0; i < tweets.length; i++) {
-    const tw = tweets[i]
-    mixAt(out, chirp(tw[1], tw[2], 0.16 + (i % 3) * 0.04, tw[3]), tw[0])
-    if (i % 3 === 0) mixAt(out, chirp(tw[1] * 0.92, tw[2] * 0.88, 0.12, tw[3] * 0.7), tw[0] + 0.16)
+function pluck(freq, dur, vol) {
+  const n = Math.max(1, Math.floor(SAMPLE_RATE * dur))
+  const data = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE
+    const env = Math.min(1, i / 70) * Math.exp(-t * 4.8)
+    const s = Math.sin(2 * Math.PI * freq * t) + 0.22 * Math.sin(4 * Math.PI * freq * t)
+    data[i] = s * vol * env
   }
+  return data
+}
+
+function buildBgmPcm() {
+  const beat = 0.42
+  const dur = beat * 16
+  const out = new Float32Array(Math.floor(SAMPLE_RATE * dur))
+  mixAt(out, airPad(dur, 0.09), 0)
+  const melody = [523, 659, 784, 659, 587, 784, 880, 784, 659, 784, 659, 523, 587, 659, 523, 392]
+  for (let i = 0; i < melody.length; i++) {
+    mixAt(out, pluck(melody[i], 0.5, i % 4 === 0 ? 0.2 : 0.15), i * beat)
+  }
+  const bass = [261, 196, 220, 196]
+  for (let i = 0; i < 4; i++) {
+    mixAt(out, pluck(bass[i], 0.85, 0.11), i * beat * 4)
+  }
+  mixAt(out, chirp(2200, 3000, 0.12, 0.07), beat * 3.2)
+  mixAt(out, chirp(1800, 2500, 0.1, 0.06), beat * 7.4)
+  mixAt(out, chirp(2400, 3200, 0.11, 0.07), beat * 11.6)
+  mixAt(out, chirp(2000, 2700, 0.1, 0.05), beat * 14.2)
   let peak = 0.001
   for (let i = 0; i < out.length; i++) {
     const a = Math.abs(out[i])
     if (a > peak) peak = a
   }
-  const k = 0.72 / peak
-  const fade = Math.floor(SAMPLE_RATE * 0.35)
+  const k = 0.78 / peak
+  const fade = Math.floor(SAMPLE_RATE * 0.22)
   for (let i = 0; i < out.length; i++) {
     let g = k
     if (i < fade) g *= i / fade
