@@ -64,13 +64,17 @@ class HomeScene {
   layout() {
     const env = this.app.env
     const cx = env.width / 2
-    const bw = Math.min(260, env.width - 72)
+    const bw = Math.min(260, env.width - 48)
     const bh = 50
-    const startY = env.height * 0.56
+    const helpH = 40
+    const stack = 132 + helpH + 28
+    const bottomLimit = env.height - Math.max(env.safeBottom + 12, 44)
+    let startY = env.height * 0.56
+    if (startY + stack > bottomLimit) startY = bottomLimit - stack
     return {
       level: { x: cx - bw / 2, y: startY, w: bw, h: bh, label: '闯关模式', bg: '#E07A5F', radius: 25 },
       endless: { x: cx - bw / 2, y: startY + 66, w: bw, h: bh, label: '无尽模式', bg: '#81B29A', radius: 25 },
-      help: { x: cx - bw / 2, y: startY + 132, w: bw, h: 40, label: '玩法说明', bg: '#FFFBF5', color: '#3D405B', border: '#E6D9C8', radius: 20, font: 'bold 14px sans-serif' },
+      help: { x: cx - bw / 2, y: startY + 132, w: bw, h: helpH, label: '玩法说明', bg: '#FFFBF5', color: '#3D405B', border: '#E6D9C8', radius: 20, font: 'bold 14px sans-serif' },
       sound: { x: 16, y: env.safeTop, w: 64, h: 28, label: audio.isSoundOn() ? '音效开' : '音效关', bg: 'rgba(61,64,91,0.1)', color: '#3D405B', radius: 14, font: '12px sans-serif' }
     }
   }
@@ -107,7 +111,7 @@ class HomeScene {
       ctx.fillStyle = '#8A8178'
       ctx.font = '12px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('点击跳过', env.width / 2, env.height - 52)
+      ctx.fillText('点击跳过', env.width / 2, env.height - Math.max(env.safeBottom + 28, 56))
       ctx.globalAlpha = 1
     }
 

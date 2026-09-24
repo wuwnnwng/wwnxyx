@@ -111,7 +111,7 @@ class BirdIntroScene {
       ctx.fillStyle = '#3D405B'
       ctx.font = '12px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('点击跳过', env.width / 2, env.height - 48)
+      ctx.fillText('点击跳过', env.width / 2, env.height - Math.max(env.safeBottom + 28, 56))
       ctx.globalAlpha = 1
     }
   }

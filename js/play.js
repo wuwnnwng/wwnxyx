@@ -89,8 +89,8 @@ class PlayScene {
     const slotH = Math.round(slotW * 1.12)
     const nestH = titleRow + slotH + trayPadY * 2
     const btnH = 56
-    const toolsGap = 4
-    const bottomPad = Math.max(env.safeBottom, 6)
+    const toolsGap = 8
+    const bottomPad = Math.max(env.safeBottom + 12, 44)
     const boardY = headerY + headerH + 6
     const toolsY = env.height - bottomPad - btnH
     const dockY = toolsY - toolsGap - nestH
@@ -106,9 +106,11 @@ class PlayScene {
         h: slotH
       })
     }
-    const btnGap = 10
-    const btnW = Math.floor((env.width - 16 - btnGap * 2) / 3)
-    const bx = 8
+    const side = 12
+    const btnGap = 8
+    const btnW = Math.floor((env.width - side * 2 - btnGap * 2) / 3)
+    const rowW = btnW * 3 + btnGap * 2
+    const bx = Math.floor((env.width - rowW) / 2)
     function toolBtn(i, label, pal, face, flap) {
       return {
         x: bx + i * (btnW + btnGap),
