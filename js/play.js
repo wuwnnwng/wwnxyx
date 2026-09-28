@@ -66,7 +66,7 @@ class PlayScene {
     if (this.mode === 'level' && this.cfg.level === 2) {
       this.showToast('注意：从本关开始难度飙升！', 3.6)
     } else if (this.cfg.advancedPairs > 0 && this.cfg.level === 3) {
-      this.showToast('金色高级牌是炸弹，两张对消会炸掉周围', 2.4)
+      this.showToast('金色炸弹只炸掉它原来旁边的牌', 2.4)
     }
     if (!(this.mode === 'level' && this.cfg.level === 1)) {
       let guard = 0
@@ -768,6 +768,7 @@ class PlayScene {
     if (!r || this.slots[index]) return
     this.selected = null
     card.scale = 1
+    if (card.slotIndex == null) board.stampHome(card)
     this.history.push({
       card: card,
       x: card.x,
@@ -810,6 +811,13 @@ class PlayScene {
     const mx = (a.x + b.x) / 2
     const my = (a.y + b.y) / 2
     const advanced = a.advanced && b.advanced
+    const blast = []
+    if (advanced) {
+      const oa = board.blastOrigin(a)
+      const ob = board.blastOrigin(b)
+      if (oa) blast.push(oa)
+      if (ob) blast.push(ob)
+    }
     const item = ITEMS[a.type]
     audio.match()
     try { wx.vibrateShort({ type: 'medium' }) } catch (e) {}
@@ -836,15 +844,21 @@ class PlayScene {
 
       if (advanced) {
         audio.boom()
-        const cx = mx + a.w / 2
-        const cy = my + a.h / 2
-        const extra = board.explodeAround(self.cards, cx, cy)
+        const extra = blast.length ? board.explodeAround(self.cards, blast) : []
+        let fx = 0
+        let fy = 0
         extra.forEach(function (c) {
           board.clearSlotOf(c, self.slots)
           self.score += CONFIG.score.explodeEach
-          self.particles.burst(c.x + c.w / 2, c.y + c.h / 2, '#E9C46A', 8)
+          const vx = c.x + c.w / 2
+          const vy = c.y + c.h / 2
+          fx += vx
+          fy += vy
+          self.particles.burst(vx, vy, '#E9C46A', 8)
         })
-        if (extra.length) self.addFloater(cx, cy - 20, '高级爆炸 +' + extra.length * CONFIG.score.explodeEach, '#E9C46A')
+        if (extra.length) {
+          self.addFloater(fx / extra.length, fy / extra.length - 20, '高级爆炸 +' + extra.length * CONFIG.score.explodeEach, '#E9C46A')
+        }
       }
       self.afterBoardChange()
     }
@@ -1116,6 +1130,7 @@ class PlayScene {
       c.h = rec.h
       c.layer = rec.layer
       c.scale = 1
+      board.stampHome(c)
       board.compactSlots(this.slots, this.layout.slots)
       this.consumeTool('undo')
       this.showToast('已撤回')
@@ -1151,6 +1166,7 @@ class PlayScene {
       c.y = box.y + box.h - c.h - 8
       if (c.x < box.x) c.x = box.x
       if (c.x + c.w > box.x + box.w) c.x = box.x + box.w - c.w
+      board.stampHome(c)
     }
     this.history = []
     board.compactSlots(this.slots, this.layout.slots)

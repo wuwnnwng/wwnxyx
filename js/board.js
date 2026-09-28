@@ -63,6 +63,53 @@ function isFree(card, cards) {
   return false
 }
 
+function isOpen(card, cards) {
+  if (card.removed || card.locked || card.slotIndex != null) return false
+  const pts = [
+    [0.5, 0.5],
+    [0.22, 0.22], [0.78, 0.22],
+    [0.22, 0.78], [0.78, 0.78]
+  ]
+  let buried = 0
+  for (let i = 0; i < pts.length; i++) {
+    const x = card.x + card.w * pts[i][0]
+    const y = card.y + card.h * pts[i][1]
+    if (!higherCardAt(card, cards, x, y)) continue
+    if (i === 0) return false
+    buried++
+  }
+  return buried <= 1
+}
+
+function stampHome(card) {
+  card.homeX = card.x
+  card.homeY = card.y
+  card.homeW = card.w
+  card.homeH = card.h
+}
+
+function refreshHomes(cards) {
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i]
+    if (c.removed || c.slotIndex != null) continue
+    stampHome(c)
+  }
+}
+
+function blastOrigin(card) {
+  const onBoard = card.slotIndex == null
+  const x = onBoard ? card.x : card.homeX
+  const y = onBoard ? card.y : card.homeY
+  if (x == null || y == null) return null
+  const w = onBoard ? card.w : (card.homeW || card.boardW || card.w)
+  const h = onBoard ? card.h : (card.homeH || card.boardH || card.h)
+  return {
+    x: x + w / 2,
+    y: y + h / 2,
+    r: Math.max(w, h) * CONFIG.card.explodeScale
+  }
+}
+
 function isAdjacent(a, b) {
   const pad = CONFIG.card.adjacentPad
   return rectsOverlapArea(inflate(a, pad), b) > 0
@@ -326,6 +373,7 @@ function createBoard(cfg, box, cardW, cardH) {
   assignLocks(cards, cfg.locks)
   balanceOpening(cards, cfg.openCopies)
   ensureOpeningMatch(cards)
+  refreshHomes(cards)
   return cards
 }
 
@@ -397,7 +445,7 @@ function findSynthesisGroups(cards) {
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i]
     if (c.removed || c.locked || c.advanced) continue
-    if (c.slotIndex == null && !isFree(c, cards)) continue
+    if (!isOpen(c, cards)) continue
     if (!map[c.type]) map[c.type] = []
     map[c.type].push(c)
   }
@@ -434,19 +482,30 @@ function synthesizeGroup(group, cards, box) {
   })
   if (adv.x < box.x) adv.x = box.x
   if (adv.y < box.y) adv.y = box.y
+  if (adv.slotIndex == null) stampHome(adv)
   cards.push(adv)
   return adv
 }
 
-function explodeAround(cards, ax, ay) {
-  const victims = activeCards(cards)
-    .map(function (c) {
-      return { c: c, d: dist(ax, ay, c.x + c.w / 2, c.y + c.h / 2) }
-    })
-    .filter(function (o) {
-      return o.d <= CONFIG.card.explodeRadius
-    })
-    .sort(function (a, b) { return a.d - b.d })
+function explodeAround(cards, origins) {
+  const victims = []
+  if (!origins || !origins.length) return victims
+  const list = activeCards(cards)
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]
+    if (c.slotIndex != null) continue
+    const cx = c.x + c.w / 2
+    const cy = c.y + c.h / 2
+    let best = 1e9
+    for (let j = 0; j < origins.length; j++) {
+      const o = origins[j]
+      if (!o) continue
+      const d = dist(o.x, o.y, cx, cy)
+      if (d <= o.r && d < best) best = d
+    }
+    if (best < 1e9) victims.push({ c: c, d: best })
+  }
+  victims.sort(function (a, b) { return a.d - b.d })
 
   const cleared = []
   for (let i = 0; i < victims.length && cleared.length < CONFIG.card.explodeMax; i++) {
@@ -559,6 +618,7 @@ function shuffleBoard(cards, box, cfg) {
   layoutStack(pile, box, spec, 92, 112)
   balanceOpening(cards, spec.openCopies)
   ensureOpeningMatch(cards)
+  refreshHomes(cards)
 }
 
 function spawnEndless(cards, box, cardW, cardH, difficulty) {
@@ -629,6 +689,7 @@ function spawnEndless(cards, box, cardW, cardH, difficulty) {
     cards.push(mate)
     spawned.push(top, mate)
   }
+  refreshHomes(cards)
   while (activeCards(cards).length > 96) {
     const alive = activeCards(cards)
     const counts = {}
@@ -675,6 +736,7 @@ function fitCardInSlot(card, rect) {
 function moveToSlot(card, slots, index, slotRects) {
   const old = slots[index]
   if (old) return false
+  if (card.slotIndex == null) stampHome(card)
   slots[index] = card
   card.slotIndex = index
   card.layer = 100 + index
@@ -787,6 +849,8 @@ module.exports = {
   createBoard: createBoard,
   findCardAt: findCardAt,
   clickableSamePairs: clickableSamePairs,
+  stampHome: stampHome,
+  blastOrigin: blastOrigin,
   canMatch: canMatch,
   applyLockDamage: applyLockDamage,
   findSynthesisGroups: findSynthesisGroups,

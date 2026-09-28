@@ -27,7 +27,7 @@ const CONFIG = {
   card: {
     coverOverlap: 0.28,
     adjacentPad: 10,
-    explodeRadius: 118,
+    explodeScale: 1.25,
     explodeMax: 4
   },
 
